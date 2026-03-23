@@ -97,7 +97,14 @@ def steps_to_html(text):
 def clean_req(summary):
     m = re.match(r"\[REQ\]\[([^\]]+)\]-\s*(.*)", summary or "")
     return f"{m.group(1)} - {m.group(2)}" if m else summary
-
+def escape_html(text: str) -> str:
+    text = text or ""
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+    
 def is_main_requirement(value):
     if value is True:
         return True
