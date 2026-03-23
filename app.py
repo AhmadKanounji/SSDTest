@@ -108,16 +108,21 @@ def escape_html(text: str) -> str:
 def is_main_requirement(value):
     if value is True:
         return True
-    if value is False or value is None:
+    if value in (False, None, "", []):
         return False
 
     if isinstance(value, str):
         return value.strip().lower() in ("yes", "true", "y")
 
     if isinstance(value, dict):
-        for k in ("value", "name"):
-            v = value.get(k)
+        for key in ("value", "name"):
+            v = value.get(key)
             if isinstance(v, str) and v.strip().lower() in ("yes", "true", "y"):
+                return True
+
+    if isinstance(value, list):
+        for item in value:
+            if is_main_requirement(item):
                 return True
 
     return False
@@ -163,24 +168,31 @@ def attachment_images_to_html(attachments):
         return ""
 
     html = []
+
     for att in attachments:
         mime = (att.get("mimeType") or "").lower()
-        filename = (att.get("filename") or "").lower()
+        filename = (att.get("filename") or "")
+        content_url = att.get("content")
+        thumbnail_url = att.get("thumbnail")
 
-        is_image = mime.startswith("image/") or filename.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
+        is_image = mime.startswith("image/") or filename.lower().endswith(
+            (".png", ".jpg", ".jpeg", ".gif", ".webp")
+        )
+
         if not is_image:
             continue
 
-        content_url = att.get("content")
-        if not content_url:
+        url = content_url or thumbnail_url
+        if not url:
             continue
 
         html.append(
-            f'<p><img src="{content_url}" alt="{escape_html(att.get("filename", "diagram"))}" '
+            f'<p><img src="{escape_html(url)}" alt="{escape_html(filename or "diagram")}" '
             f'style="max-width:100%; height:auto;" /></p>'
         )
 
     return "\n".join(html)
+    
 def build_html(epics, reqs):
     html = []
 
@@ -196,12 +208,15 @@ def build_html(epics, reqs):
         normal_reqs = []
 
         for r in requirements:
+                print("REQ", r["key"], "MAIN FIELD =", r["fields"].get("customfield_10265"))
             if is_main_requirement(r["fields"].get("customfield_10265")) and main_req is None:
                 main_req = r
             else:
                 normal_reqs.append(r)
 
         if main_req:
+            print("MAIN REQ KEY =", main_req["key"])
+            print("MAIN REQ ATTACHMENTS =", main_req["fields"].get("attachment"))
             mf = main_req["fields"]
             main_summary = clean_req(mf.get("summary", ""))
             main_intro = extract_text_before_images(mf.get("description"))
