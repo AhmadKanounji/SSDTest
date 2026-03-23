@@ -24,7 +24,7 @@ def jira_search(jql: str):
     params = {
         "jql": jql,
         "maxResults": 100,
-        "fields": "summary,description,issuetype,parent,attachment,customfield_10230,customfield_10264",
+        "fields": "summary,description,issuetype,parent,attachment,customfield_10230,customfield_10265",
     }
     r = requests.get(url, params=params, auth=auth)
     r.raise_for_status()
