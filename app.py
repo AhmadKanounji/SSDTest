@@ -162,7 +162,15 @@ def generate_ssd():
 @app.get("/")
 def health():
     return {"status": "ok"}
-
+@app.get("/debug-config")
+def debug_config():
+    return {
+        "domain": ATLASSIAN_DOMAIN,
+        "email": EMAIL,
+        "project_key": PROJECT_KEY,
+        "page_id": CONFLUENCE_PAGE_ID,
+        "token_length": len(API_TOKEN),
+    }, 200
 
 @app.post("/generate-ssd")
 def run():
