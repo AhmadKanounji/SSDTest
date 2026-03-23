@@ -145,7 +145,8 @@ def generate_ssd():
             parent = i["fields"].get("parent")
             if parent:
                 reqs.setdefault(parent["key"], []).append(i)
-
+                
+    epics.sort(key=lambda x: int(x["key"].split("-")[1]))
     html = build_html(epics, reqs)
 
     page = get_confluence_page()
