@@ -196,7 +196,7 @@ def build_html(epics, reqs):
         normal_reqs = []
 
         for r in requirements:
-            if is_main_requirement(r["fields"].get("customfield_10264")) and main_req is None:
+            if is_main_requirement(r["fields"].get("customfield_10265")) and main_req is None:
                 main_req = r
             else:
                 normal_reqs.append(r)
