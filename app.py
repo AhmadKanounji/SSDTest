@@ -200,23 +200,24 @@ def build_html(epics, reqs):
         key = e["key"]
         f = e["fields"]
 
-        html.append(f"<h1>{escape_html(f['summary'])}</h1>")
-
         requirements = reqs.get(key, [])
 
         main_req = None
         normal_reqs = []
 
         for r in requirements:
-                print("REQ", r["key"], "MAIN FIELD =", r["fields"].get("customfield_10265"))
+            print("REQ", r["key"], "MAIN FIELD =", r["fields"].get("customfield_10265"))
             if is_main_requirement(r["fields"].get("customfield_10265")) and main_req is None:
                 main_req = r
             else:
                 normal_reqs.append(r)
 
+        html.append(f"<h1>{escape_html(f['summary'])}</h1>")
+
         if main_req:
             print("MAIN REQ KEY =", main_req["key"])
             print("MAIN REQ ATTACHMENTS =", main_req["fields"].get("attachment"))
+
             mf = main_req["fields"]
             main_summary = clean_req(mf.get("summary", ""))
             main_intro = extract_text_before_images(mf.get("description"))
@@ -231,7 +232,7 @@ def build_html(epics, reqs):
                 html.append(main_images_html)
 
         html.append("<h2>Description</h2>")
-        html.append(f"<p>{adf_to_text(f.get('description')).replace(chr(10), '<br/>')}</p>")
+        html.append(f"<p>{escape_html(adf_to_text(f.get('description'))).replace(chr(10), '<br/>')}</p>")
 
         html.append("<h2>Steps</h2>")
         html.append(steps_to_html(adf_to_text(f.get("customfield_10230"))))
