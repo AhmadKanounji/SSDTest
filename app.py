@@ -7,11 +7,11 @@ from flask import Flask, jsonify
 app = Flask(__name__)
 
 # ✅ ENV VARIABLES (Render will provide these)
-ATLASSIAN_DOMAIN = os.environ["ATLASSIAN_DOMAIN"]
-EMAIL = os.environ["ATLASSIAN_EMAIL"]
-API_TOKEN = os.environ["ATLASSIAN_API_TOKEN"]
-PROJECT_KEY = os.environ["PROJECT_KEY"]
-CONFLUENCE_PAGE_ID = os.environ["CONFLUENCE_PAGE_ID"]
+ATLASSIAN_DOMAIN = os.environ["ATLASSIAN_DOMAIN"].strip()
+EMAIL = os.environ["ATLASSIAN_EMAIL"].strip()
+API_TOKEN = os.environ["ATLASSIAN_API_TOKEN"].strip()
+PROJECT_KEY = os.environ["PROJECT_KEY"].strip()
+CONFLUENCE_PAGE_ID = os.environ["CONFLUENCE_PAGE_ID"].strip()
 
 JIRA_BASE = f"https://{ATLASSIAN_DOMAIN}"
 CONF_BASE = f"https://{ATLASSIAN_DOMAIN}/wiki"
