@@ -24,7 +24,7 @@ def jira_search(jql: str):
     params = {
         "jql": jql,
         "maxResults": 100,
-        "fields": "summary,description,issuetype,parent,attachment,customfield_10230,customfield_10265",
+        "fields": "summary,description,issuetype,parent,attachment,customfield_10230,customfield_10265,customfield_10298,customfield_10299",
     }
     r = requests.get(url, params=params, auth=auth)
     r.raise_for_status()
@@ -93,7 +93,21 @@ def steps_to_html(text):
     cleaned = [l.lstrip("#").strip() for l in lines]
     return "<ol>" + "".join(f"<li>{l}</li>" for l in cleaned) + "</ol>"
 
+def get_select_value(value):
+    if value is None:
+        return ""
 
+    if isinstance(value, str):
+        return value.strip().lower()
+
+    if isinstance(value, dict):
+        for key in ("value", "name"):
+            v = value.get(key)
+            if isinstance(v, str):
+                return v.strip().lower()
+
+    return str(value).strip().lower()
+    
 def clean_req(summary):
     m = re.match(r"\[REQ\]\[([^\]]+)\]-\s*(.*)", summary or "")
     return f"{m.group(1)} - {m.group(2)}" if m else summary
@@ -193,86 +207,144 @@ def attachment_images_to_html(attachments):
 
     return "\n".join(html)
     
-def build_html(epics, reqs):
+def build_html(sections, epics_by_section, general_reqs_by_section, reqs_by_epic):
     html = []
 
-    for e in epics:
-        key = e["key"]
-        f = e["fields"]
+    for section in sections:
+        section_key = section["key"]
+        sf = section["fields"]
 
-        requirements = reqs.get(key, [])
+        section_title = sf.get("summary", "")
+        section_description = adf_to_text(sf.get("description"))
 
-        main_req = None
-        normal_reqs = []
+        html.append(f"<h1>{escape_html(section_title)}</h1>")
 
-        for r in requirements:
-            print("REQ", r["key"], "MAIN FIELD =", r["fields"].get("customfield_10265"))
-            if is_main_requirement(r["fields"].get("customfield_10265")) and main_req is None:
-                main_req = r
-            else:
-                normal_reqs.append(r)
+        if section_description.strip():
+            html.append(f"<p>{escape_html(section_description).replace(chr(10), '<br/>')}</p>")
 
-        html.append(f"<h1>{escape_html(f['summary'])}</h1>")
+        # General Requirements
+        html.append("<h2>General Requirements</h2>")
+        html.append("<ul>")
 
-        if main_req:
-            print("MAIN REQ KEY =", main_req["key"])
-            print("MAIN REQ ATTACHMENTS =", main_req["fields"].get("attachment"))
+        general_reqs = general_reqs_by_section.get(section_key, [])
+        general_reqs = sorted(general_reqs, key=lambda x: int(x["key"].split("-")[1]))
 
-            mf = main_req["fields"]
-            main_summary = clean_req(mf.get("summary", ""))
-            main_intro = extract_text_before_images(mf.get("description"))
-            main_images_html = attachment_images_to_html(mf.get("attachment", []))
-
-            html.append(f"<p><strong>{escape_html(main_summary)}</strong></p>")
-
-            if main_intro.strip():
-                html.append(f"<p>{escape_html(main_intro).replace(chr(10), '<br/>')}</p>")
-
-            if main_images_html:
-                html.append(main_images_html)
-
-        html.append("<h2>Description</h2>")
-        html.append(f"<p>{escape_html(adf_to_text(f.get('description'))).replace(chr(10), '<br/>')}</p>")
-
-        html.append("<h2>Steps</h2>")
-        html.append(steps_to_html(adf_to_text(f.get("customfield_10230"))))
-
-        html.append("<h2>Requirements</h2><ul>")
-
-        normal_reqs = sorted(normal_reqs, key=lambda x: int(x["key"].split("-")[1]))
-
-        for r in normal_reqs:
-            rf = r["fields"]
+        for req in general_reqs:
+            rf = req["fields"]
             html.append("<li>")
-            html.append(f"<strong>{escape_html(clean_req(rf['summary']))}</strong><br/>")
+            html.append(f"<strong>{escape_html(clean_req(rf.get('summary', '')))}</strong><br/>")
             html.append(escape_html(adf_to_text(rf.get("description"))).replace("\n", "<br/>"))
             html.append("</li>")
 
-        html.append("</ul><hr/>")
+        html.append("</ul>")
+
+        # UCs under this section
+        epics = epics_by_section.get(section_key, [])
+        epics = sorted(epics, key=lambda x: int(x["key"].split("-")[1]))
+
+        for epic in epics:
+            epic_key = epic["key"]
+            ef = epic["fields"]
+
+            requirements = reqs_by_epic.get(epic_key, [])
+
+            main_req = None
+            specific_reqs = []
+
+            for r in requirements:
+                req_type = get_select_value(r["fields"].get("customfield_10299"))
+
+                if req_type == "main" and main_req is None:
+                    main_req = r
+                elif req_type == "specific":
+                    specific_reqs.append(r)
+
+            html.append(f"<h1>{escape_html(ef.get('summary', ''))}</h1>")
+
+            # Main requirement first
+            if main_req:
+                mf = main_req["fields"]
+                main_summary = clean_req(mf.get("summary", ""))
+                main_intro = extract_text_before_images(mf.get("description"))
+                main_images_html = attachment_images_to_html(mf.get("attachment", []))
+
+                html.append(f"<p><strong>{escape_html(main_summary)}</strong></p>")
+
+                if main_intro.strip():
+                    html.append(f"<p>{escape_html(main_intro).replace(chr(10), '<br/>')}</p>")
+
+                if main_images_html:
+                    html.append(main_images_html)
+
+            # Description
+            html.append("<h2>Description</h2>")
+            html.append(f"<p>{escape_html(adf_to_text(ef.get('description'))).replace(chr(10), '<br/>')}</p>")
+
+            # Steps
+            html.append("<h2>Steps</h2>")
+            html.append(steps_to_html(adf_to_text(ef.get("customfield_10230"))))
+
+            # Specific requirements only
+            html.append("<h2>Requirements</h2>")
+            html.append("<ul>")
+
+            specific_reqs = sorted(specific_reqs, key=lambda x: int(x["key"].split("-")[1]))
+
+            for r in specific_reqs:
+                rf = r["fields"]
+                html.append("<li>")
+                html.append(f"<strong>{escape_html(clean_req(rf.get('summary', '')))}</strong><br/>")
+                html.append(escape_html(adf_to_text(rf.get("description"))).replace("\n", "<br/>"))
+                html.append("</li>")
+
+            html.append("</ul>")
+            html.append("<hr/>")
 
     return "\n".join(html)
 
 
 def generate_ssd():
-    jql = f'project = {PROJECT_KEY} AND issuetype in (Epic, Requirement)'
+    jql = (
+        f'project = {PROJECT_KEY} AND issuetype in ("SSD Section", Epic, Requirement)'
+    )
     issues = jira_search(jql)
 
-    epics = []
-    reqs = {}
+    sections = []
+    epics_by_section = {}
+    general_reqs_by_section = {}
+    reqs_by_epic = {}
 
-    for i in issues:
-        t = i["fields"]["issuetype"]["name"]
+    for issue in issues:
+        issue_type = issue["fields"]["issuetype"]["name"]
+        fields = issue["fields"]
 
-        if t == "Epic":
-            epics.append(i)
+        if issue_type == "SSD Section":
+            sections.append(issue)
 
-        elif t == "Requirement":
-            parent = i["fields"].get("parent")
-            if parent:
-                reqs.setdefault(parent["key"], []).append(i)
-                
-    epics.sort(key=lambda x: int(x["key"].split("-")[1]))
-    html = build_html(epics, reqs)
+        elif issue_type == "Epic":
+            section = fields.get("customfield_10298")
+            if section and section.get("key"):
+                section_key = section["key"]
+                epics_by_section.setdefault(section_key, []).append(issue)
+
+        elif issue_type == "Requirement":
+            req_type = get_select_value(fields.get("customfield_10299"))
+
+            if req_type == "general":
+                section = fields.get("customfield_10298")
+                if section and section.get("key"):
+                    section_key = section["key"]
+                    general_reqs_by_section.setdefault(section_key, []).append(issue)
+
+            elif req_type in ("main", "specific"):
+                parent = fields.get("parent")
+                if parent and parent.get("key"):
+                    parent_key = parent["key"]
+                    reqs_by_epic.setdefault(parent_key, []).append(issue)
+
+    sections = sorted(sections, key=lambda x: int(x["key"].split("-")[1]))
+
+    html = build_html(sections, epics_by_section, general_reqs_by_section, reqs_by_epic)
 
     page = get_confluence_page()
 
