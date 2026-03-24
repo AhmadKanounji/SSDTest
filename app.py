@@ -2,11 +2,11 @@ import os
 import re
 import requests
 from requests.auth import HTTPBasicAuth
-from flask import Flask, jsonify
+from flask import Flask
 
 app = Flask(__name__)
 
-# ✅ ENV VARIABLES (Render will provide these)
+# ENV VARIABLES
 ATLASSIAN_DOMAIN = os.environ["ATLASSIAN_DOMAIN"].strip()
 EMAIL = os.environ["ATLASSIAN_EMAIL"].strip()
 API_TOKEN = os.environ["ATLASSIAN_API_TOKEN"].strip()
@@ -23,8 +23,11 @@ def jira_search(jql: str):
     url = f"{JIRA_BASE}/rest/api/3/search/jql"
     params = {
         "jql": jql,
-        "maxResults": 100,
-        "fields": "summary,description,issuetype,parent,attachment,customfield_10230,customfield_10265,customfield_10298,customfield_10299",
+        "maxResults": 200,
+        "fields": (
+            "summary,description,issuetype,parent,attachment,"
+            "customfield_10230,customfield_10265,customfield_10298,customfield_10299"
+        ),
     }
     r = requests.get(url, params=params, auth=auth)
     r.raise_for_status()
@@ -69,29 +72,37 @@ def adf_to_text(adf):
 
     def walk(node):
         if isinstance(node, dict):
-            if node.get("type") == "text":
+            node_type = node.get("type")
+
+            if node_type == "text":
                 parts.append(node.get("text", ""))
-            elif node.get("type") == "hardBreak":
+            elif node_type == "hardBreak":
                 parts.append("\n")
 
-            for c in node.get("content", []):
-                walk(c)
+            for child in node.get("content", []):
+                walk(child)
 
-            if node.get("type") in ("paragraph", "heading"):
+            if node_type in ("paragraph", "heading"):
                 parts.append("\n")
 
         elif isinstance(node, list):
-            for i in node:
-                walk(i)
+            for item in node:
+                walk(item)
 
     walk(adf)
     return "".join(parts).strip()
 
 
 def steps_to_html(text):
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
-    cleaned = [l.lstrip("#").strip() for l in lines]
-    return "<ol>" + "".join(f"<li>{l}</li>" for l in cleaned) + "</ol>"
+    text = text or ""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    cleaned = [line.lstrip("#").strip() for line in lines]
+
+    if not cleaned:
+        return "<ol></ol>"
+
+    return "<ol>" + "".join(f"<li>{escape_html(line)}</li>" for line in cleaned) + "</ol>"
+
 
 def get_select_value(value):
     if value is None:
@@ -106,11 +117,35 @@ def get_select_value(value):
             if isinstance(v, str):
                 return v.strip().lower()
 
+    if isinstance(value, list):
+        for item in value:
+            result = get_select_value(item)
+            if result:
+                return result
+
     return str(value).strip().lower()
-    
+
+
+def get_issue_picker_key(value):
+    if not value:
+        return ""
+
+    if isinstance(value, dict):
+        return value.get("key", "")
+
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, dict) and item.get("key"):
+                return item["key"]
+
+    return ""
+
+
 def clean_req(summary):
     m = re.match(r"\[REQ\]\[([^\]]+)\]-\s*(.*)", summary or "")
-    return f"{m.group(1)} - {m.group(2)}" if m else summary
+    return f"{m.group(1)} - {m.group(2)}" if m else (summary or "")
+
+
 def escape_html(text: str) -> str:
     text = text or ""
     return (
@@ -118,7 +153,8 @@ def escape_html(text: str) -> str:
         .replace("<", "&lt;")
         .replace(">", "&gt;")
     )
-    
+
+
 def is_main_requirement(value):
     if value is True:
         return True
@@ -185,7 +221,7 @@ def attachment_images_to_html(attachments):
 
     for att in attachments:
         mime = (att.get("mimeType") or "").lower()
-        filename = (att.get("filename") or "")
+        filename = att.get("filename", "") or ""
         content_url = att.get("content")
         thumbnail_url = att.get("thumbnail")
 
@@ -206,7 +242,8 @@ def attachment_images_to_html(attachments):
         )
 
     return "\n".join(html)
-    
+
+
 def build_html(sections, epics_by_section, general_reqs_by_section, reqs_by_epic):
     html = []
 
@@ -304,9 +341,7 @@ def build_html(sections, epics_by_section, general_reqs_by_section, reqs_by_epic
 
 
 def generate_ssd():
-    jql = (
-        f'project = {PROJECT_KEY} AND issuetype in ("SSD Section", Epic, Requirement)'
-    )
+    jql = f'project = {PROJECT_KEY} AND issuetype in ("SSD Section", Epic, Requirement)'
     issues = jira_search(jql)
 
     sections = []
@@ -322,18 +357,16 @@ def generate_ssd():
             sections.append(issue)
 
         elif issue_type == "Epic":
-            section = fields.get("customfield_10298")
-            if section and section.get("key"):
-                section_key = section["key"]
+            section_key = get_issue_picker_key(fields.get("customfield_10298"))
+            if section_key:
                 epics_by_section.setdefault(section_key, []).append(issue)
 
         elif issue_type == "Requirement":
             req_type = get_select_value(fields.get("customfield_10299"))
 
             if req_type == "general":
-                section = fields.get("customfield_10298")
-                if section and section.get("key"):
-                    section_key = section["key"]
+                section_key = get_issue_picker_key(fields.get("customfield_10298"))
+                if section_key:
                     general_reqs_by_section.setdefault(section_key, []).append(issue)
 
             elif req_type in ("main", "specific"):
@@ -360,6 +393,8 @@ def generate_ssd():
 @app.get("/")
 def health():
     return {"status": "ok"}
+
+
 @app.get("/debug-config")
 def debug_config():
     return {
@@ -369,6 +404,7 @@ def debug_config():
         "page_id": CONFLUENCE_PAGE_ID,
         "token_length": len(API_TOKEN),
     }, 200
+
 
 @app.post("/generate-ssd")
 def run():
