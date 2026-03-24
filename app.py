@@ -1,8 +1,12 @@
 import os
 import re
+import html as html_lib
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import requests
 from requests.auth import HTTPBasicAuth
-from flask import Flask
+from flask import Flask, request
 
 app = Flask(__name__)
 
@@ -18,6 +22,9 @@ CONF_BASE = f"https://{ATLASSIAN_DOMAIN}/wiki"
 
 auth = HTTPBasicAuth(EMAIL, API_TOKEN)
 
+REVISION_START = "<!-- REVISION_HISTORY_START -->"
+REVISION_END = "<!-- REVISION_HISTORY_END -->"
+
 
 def jira_search(jql: str):
     url = f"{JIRA_BASE}/rest/api/3/search/jql"
@@ -26,7 +33,7 @@ def jira_search(jql: str):
         "maxResults": 200,
         "fields": (
             "summary,description,issuetype,parent,attachment,"
-            "customfield_10230,customfield_10265,customfield_10298,customfield_10299"
+            "customfield_10230,customfield_10298,customfield_10299"
         ),
     }
     r = requests.get(url, params=params, auth=auth)
@@ -36,7 +43,7 @@ def jira_search(jql: str):
 
 def get_confluence_page():
     url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}"
-    params = {"expand": "version"}
+    params = {"expand": "version,body.storage"}
     r = requests.get(url, params=params, auth=auth)
     r.raise_for_status()
     return r.json()
@@ -130,7 +137,7 @@ def get_issue_picker_key(value):
     if not value:
         return ""
 
-    # Case 1: ["SCRUM-70"]
+    # Case: ["SCRUM-70"]
     if isinstance(value, list):
         if len(value) > 0:
             if isinstance(value[0], str):
@@ -138,11 +145,11 @@ def get_issue_picker_key(value):
             if isinstance(value[0], dict) and value[0].get("key"):
                 return value[0]["key"]
 
-    # Case 2: "SCRUM-70"
+    # Case: "SCRUM-70"
     if isinstance(value, str):
         return value
 
-    # Case 3: {"key": "SCRUM-70"}
+    # Case: {"key": "SCRUM-70"}
     if isinstance(value, dict):
         return value.get("key", "")
 
@@ -150,7 +157,7 @@ def get_issue_picker_key(value):
 
 
 def clean_req(summary):
-    m = re.match(r"\[REQ\]\[([^\]]+)\]-\s*(.*)", summary or "")
+    m = re.match(r"\[REQ\]\[([^\]]+)\]\s*-\s*(.*)", summary or "")
     return f"{m.group(1)} - {m.group(2)}" if m else (summary or "")
 
 
@@ -161,29 +168,6 @@ def escape_html(text: str) -> str:
         .replace("<", "&lt;")
         .replace(">", "&gt;")
     )
-
-
-def is_main_requirement(value):
-    if value is True:
-        return True
-    if value in (False, None, "", []):
-        return False
-
-    if isinstance(value, str):
-        return value.strip().lower() in ("yes", "true", "y")
-
-    if isinstance(value, dict):
-        for key in ("value", "name"):
-            v = value.get(key)
-            if isinstance(v, str) and v.strip().lower() in ("yes", "true", "y"):
-                return True
-
-    if isinstance(value, list):
-        for item in value:
-            if is_main_requirement(item):
-                return True
-
-    return False
 
 
 def extract_text_before_images(adf):
@@ -250,6 +234,110 @@ def attachment_images_to_html(attachments):
         )
 
     return "\n".join(html)
+
+
+def strip_tags(text: str) -> str:
+    text = re.sub(r"<[^>]+>", "", text or "")
+    return html_lib.unescape(text).strip()
+
+
+def extract_existing_revision_rows(existing_html: str):
+    if not existing_html:
+        return []
+
+    start_idx = existing_html.find(REVISION_START)
+    end_idx = existing_html.find(REVISION_END)
+
+    if start_idx == -1 or end_idx == -1:
+        return []
+
+    block = existing_html[start_idx:end_idx]
+
+    rows = []
+    tr_matches = re.findall(r"<tr>(.*?)</tr>", block, flags=re.DOTALL | re.IGNORECASE)
+    for tr in tr_matches:
+        td_matches = re.findall(r"<td>(.*?)</td>", tr, flags=re.DOTALL | re.IGNORECASE)
+        if len(td_matches) != 4:
+            continue
+
+        version = strip_tags(td_matches[0])
+        date = strip_tags(td_matches[1])
+        author = strip_tags(td_matches[2])
+        modification = strip_tags(td_matches[3])
+
+        rows.append({
+            "version": version,
+            "date": date,
+            "author": author,
+            "modification": modification,
+        })
+
+    return rows
+
+
+def get_next_revision_version(existing_rows):
+    if not existing_rows:
+        return "0.1"
+
+    versions = []
+    for row in existing_rows:
+        try:
+            versions.append(float(row["version"]))
+        except Exception:
+            pass
+
+    if not versions:
+        return "0.1"
+
+    next_version = round(max(versions) + 0.1, 1)
+    return f"{next_version:.1f}"
+
+
+def build_revision_history_html(existing_html: str, author: str):
+    existing_rows = extract_existing_revision_rows(existing_html)
+    next_version = get_next_revision_version(existing_rows)
+    today = datetime.now(ZoneInfo("Asia/Beirut")).strftime("%d/%m/%Y")
+
+    new_row = {
+        "version": next_version,
+        "date": today,
+        "author": author or EMAIL,
+        "modification": "SSD regenerated from Jira data",
+    }
+
+    all_rows = [new_row] + existing_rows
+
+    rows_html = []
+    for row in all_rows:
+        rows_html.append(
+            "<tr>"
+            f"<td>{escape_html(row['version'])}</td>"
+            f"<td>{escape_html(row['date'])}</td>"
+            f"<td>{escape_html(row['author'])}</td>"
+            f"<td>{escape_html(row['modification'])}</td>"
+            "</tr>"
+        )
+
+    table_html = (
+        f"{REVISION_START}"
+        "<h1>Revision History</h1>"
+        '<table border="1" style="border-collapse:collapse; width:100%;">'
+        "<thead>"
+        "<tr>"
+        "<th>Version</th>"
+        "<th>Date</th>"
+        "<th>Author</th>"
+        "<th>Modification</th>"
+        "</tr>"
+        "</thead>"
+        "<tbody>"
+        + "".join(rows_html) +
+        "</tbody>"
+        "</table>"
+        f"{REVISION_END}"
+    )
+
+    return table_html
 
 
 def build_html(sections, epics_by_section, general_reqs_by_section, reqs_by_epic):
@@ -348,7 +436,7 @@ def build_html(sections, epics_by_section, general_reqs_by_section, reqs_by_epic
     return "\n".join(html)
 
 
-def generate_ssd():
+def generate_ssd(author: str):
     jql = f'project = {PROJECT_KEY} AND issuetype in ("SSD Section", Epic, Requirement)'
     issues = jira_search(jql)
 
@@ -385,13 +473,16 @@ def generate_ssd():
 
     sections = sorted(sections, key=lambda x: int(x["key"].split("-")[1]))
 
-    html = build_html(sections, epics_by_section, general_reqs_by_section, reqs_by_epic)
-
     page = get_confluence_page()
+    existing_html = page.get("body", {}).get("storage", {}).get("value", "")
+
+    revision_html = build_revision_history_html(existing_html, author)
+    content_html = build_html(sections, epics_by_section, general_reqs_by_section, reqs_by_epic)
+    full_html = revision_html + content_html
 
     updated = update_confluence_page(
         page["title"],
-        html,
+        full_html,
         page["version"]["number"] + 1,
     )
 
@@ -417,31 +508,16 @@ def debug_config():
 @app.post("/generate-ssd")
 def run():
     try:
-        result = generate_ssd()
-        return {"status": "success", "version": result["version"]["number"]}
+        data = request.get_json(silent=True) or {}
+        author = data.get("author", EMAIL)
+        result = generate_ssd(author)
+        return {
+            "status": "success",
+            "version": result["version"]["number"],
+        }
     except Exception as e:
         return {"status": "error", "message": str(e)}, 500
 
-
-@app.get("/debug-data")
-def debug_data():
-    jql = f'project = {PROJECT_KEY} AND issuetype in ("SSD Section", Epic, Requirement)'
-    issues = jira_search(jql)
-
-    output = []
-
-    for issue in issues:
-        fields = issue["fields"]
-        output.append({
-            "key": issue["key"],
-            "type": fields["issuetype"]["name"],
-            "summary": fields.get("summary"),
-            "ssd_section_field": fields.get("customfield_10298"),
-            "requirement_type": fields.get("customfield_10299"),
-            "parent": fields.get("parent"),
-        })
-
-    return {"issues": output}, 200
 
 if __name__ == "__main__":
     app.run()
