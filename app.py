@@ -130,13 +130,21 @@ def get_issue_picker_key(value):
     if not value:
         return ""
 
+    # Case 1: ["SCRUM-70"]
+    if isinstance(value, list):
+        if len(value) > 0:
+            if isinstance(value[0], str):
+                return value[0]
+            if isinstance(value[0], dict) and value[0].get("key"):
+                return value[0]["key"]
+
+    # Case 2: "SCRUM-70"
+    if isinstance(value, str):
+        return value
+
+    # Case 3: {"key": "SCRUM-70"}
     if isinstance(value, dict):
         return value.get("key", "")
-
-    if isinstance(value, list):
-        for item in value:
-            if isinstance(item, dict) and item.get("key"):
-                return item["key"]
 
     return ""
 
