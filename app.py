@@ -415,5 +415,25 @@ def run():
         return {"status": "error", "message": str(e)}, 500
 
 
+@app.get("/debug-data")
+def debug_data():
+    jql = f'project = {PROJECT_KEY} AND issuetype in ("SSD Section", Epic, Requirement)'
+    issues = jira_search(jql)
+
+    output = []
+
+    for issue in issues:
+        fields = issue["fields"]
+        output.append({
+            "key": issue["key"],
+            "type": fields["issuetype"]["name"],
+            "summary": fields.get("summary"),
+            "ssd_section_field": fields.get("customfield_10298"),
+            "requirement_type": fields.get("customfield_10299"),
+            "parent": fields.get("parent"),
+        })
+
+    return {"issues": output}, 200
+
 if __name__ == "__main__":
     app.run()
