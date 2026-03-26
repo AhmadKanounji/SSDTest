@@ -31,10 +31,7 @@ def jira_search(jql: str):
     params = {
         "jql": jql,
         "maxResults": 200,
-        "fields": (
-            "summary,description,issuetype,parent,attachment,"
-            "customfield_10230,customfield_10298,customfield_10299"
-        ),
+        "fields": "summary,description,issuetype,parent,attachment",
     }
     r = requests.get(url, params=params, auth=auth)
     r.raise_for_status()
@@ -100,67 +97,6 @@ def adf_to_text(adf):
     return "".join(parts).strip()
 
 
-def steps_to_html(text):
-    text = text or ""
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    cleaned = [line.lstrip("#").strip() for line in lines]
-
-    if not cleaned:
-        return "<ol></ol>"
-
-    return "<ol>" + "".join(f"<li>{escape_html(line)}</li>" for line in cleaned) + "</ol>"
-
-
-def get_select_value(value):
-    if value is None:
-        return ""
-
-    if isinstance(value, str):
-        return value.strip().lower()
-
-    if isinstance(value, dict):
-        for key in ("value", "name"):
-            v = value.get(key)
-            if isinstance(v, str):
-                return v.strip().lower()
-
-    if isinstance(value, list):
-        for item in value:
-            result = get_select_value(item)
-            if result:
-                return result
-
-    return str(value).strip().lower()
-
-
-def get_issue_picker_key(value):
-    if not value:
-        return ""
-
-    # Case: ["SCRUM-70"]
-    if isinstance(value, list):
-        if len(value) > 0:
-            if isinstance(value[0], str):
-                return value[0]
-            if isinstance(value[0], dict) and value[0].get("key"):
-                return value[0]["key"]
-
-    # Case: "SCRUM-70"
-    if isinstance(value, str):
-        return value
-
-    # Case: {"key": "SCRUM-70"}
-    if isinstance(value, dict):
-        return value.get("key", "")
-
-    return ""
-
-
-def clean_req(summary):
-    m = re.match(r"\[REQ\]\[([^\]]+)\]\s*-\s*(.*)", summary or "")
-    return f"{m.group(1)} - {m.group(2)}" if m else (summary or "")
-
-
 def escape_html(text: str) -> str:
     text = text or ""
     return (
@@ -170,70 +106,9 @@ def escape_html(text: str) -> str:
     )
 
 
-def extract_text_before_images(adf):
-    if not adf:
-        return ""
-
-    if isinstance(adf, str):
-        return adf.strip()
-
-    parts = []
-
-    def walk(node):
-        if isinstance(node, dict):
-            node_type = node.get("type")
-
-            if node_type in ("media", "mediaSingle", "mediaGroup"):
-                return
-
-            if node_type == "text":
-                parts.append(node.get("text", ""))
-            elif node_type == "hardBreak":
-                parts.append("\n")
-
-            for child in node.get("content", []):
-                walk(child)
-
-            if node_type in ("paragraph", "heading"):
-                parts.append("\n")
-
-        elif isinstance(node, list):
-            for item in node:
-                walk(item)
-
-    walk(adf)
-    return "".join(parts).strip()
-
-
-def attachment_images_to_html(attachments):
-    if not attachments:
-        return ""
-
-    html = []
-
-    for att in attachments:
-        mime = (att.get("mimeType") or "").lower()
-        filename = att.get("filename", "") or ""
-        content_url = att.get("content")
-        thumbnail_url = att.get("thumbnail")
-
-        is_image = mime.startswith("image/") or filename.lower().endswith(
-            (".png", ".jpg", ".jpeg", ".gif", ".webp")
-        )
-
-        if not is_image:
-            continue
-
-        url = content_url or thumbnail_url
-        if not url:
-            continue
-
-        html.append(
-            f'<p><img src="{escape_html(url)}" alt="{escape_html(filename or "diagram")}" '
-            f'style="max-width:100%; height:auto;" /></p>'
-        )
-
-    return "\n".join(html)
+def clean_req(summary):
+    m = re.match(r"\[REQ\]\[([^\]]+)\]\s*-\s*(.*)", summary or "")
+    return f"{m.group(1)} - {m.group(2)}" if m else (summary or "")
 
 
 def strip_tags(text: str) -> str:
@@ -340,122 +215,133 @@ def build_revision_history_html(existing_html: str, author: str):
     return table_html
 
 
-def build_html(sections, epics_by_section, reqs_by_epic):
+def has_png_attachment(issue):
+    attachments = issue["fields"].get("attachment", []) or []
+
+    for att in attachments:
+        filename = (att.get("filename") or "").lower()
+        mime = (att.get("mimeType") or "").lower()
+
+        if filename.endswith(".png") or mime == "image/png":
+            return True
+
+    return False
+
+
+def attachment_images_to_html(attachments):
+    if not attachments:
+        return ""
+
     html = []
 
-    for section in sections:
-        section_key = section["key"]
-        sf = section["fields"]
+    for att in attachments:
+        mime = (att.get("mimeType") or "").lower()
+        filename = (att.get("filename") or "").lower()
+        content_url = att.get("content")
+        thumbnail_url = att.get("thumbnail")
 
-        section_title = sf.get("summary", "")
-        section_description = adf_to_text(sf.get("description"))
+        is_image = mime.startswith("image/") or filename.endswith(
+            (".png", ".jpg", ".jpeg", ".gif", ".webp")
+        )
 
-        html.append(f"<h1>{escape_html(section_title)}</h1>")
+        if not is_image:
+            continue
 
-        if section_description.strip():
-            html.append(f"<p>{escape_html(section_description).replace(chr(10), '<br/>')}</p>")
+        url = content_url or thumbnail_url
+        if not url:
+            continue
 
-        # UCs under this section
-        epics = epics_by_section.get(section_key, [])
-        epics = sorted(epics, key=lambda x: int(x["key"].split("-")[1]))
+        html.append(
+            f'<p><img src="{escape_html(url)}" alt="{escape_html(filename or "diagram")}" '
+            f'style="max-width:100%; height:auto;" /></p>'
+        )
 
-        for epic in epics:
-            epic_key = epic["key"]
-            ef = epic["fields"]
+    return "\n".join(html)
 
-            requirements = reqs_by_epic.get(epic_key, [])
 
-            main_req = None
-            specific_reqs = []
+def build_requirement_html(req):
+    rf = req["fields"]
+    req_title = clean_req(rf.get("summary", ""))
+    req_description = adf_to_text(rf.get("description"))
+    req_images_html = attachment_images_to_html(rf.get("attachment", []))
 
-            for r in requirements:
-                req_type = get_select_value(r["fields"].get("customfield_10299"))
+    html = [f"<h3>{escape_html(req_title)}</h3>"]
 
-                if req_type == "main" and main_req is None:
-                    main_req = r
-                elif req_type == "specific":
-                    specific_reqs.append(r)
+    if req_description.strip():
+        html.append(f"<p>{escape_html(req_description).replace(chr(10), '<br/>')}</p>")
 
-            html.append(f"<h1>{escape_html(ef.get('summary', ''))}</h1>")
+    if req_images_html:
+        html.append(req_images_html)
 
-            # Main requirement first
-            if main_req:
-                mf = main_req["fields"]
-                main_summary = clean_req(mf.get("summary", ""))
-                main_intro = extract_text_before_images(mf.get("description"))
-                main_images_html = attachment_images_to_html(mf.get("attachment", []))
+    return "\n".join(html)
 
-                html.append(f"<p><strong>{escape_html(main_summary)}</strong></p>")
 
-                if main_intro.strip():
-                    html.append(f"<p>{escape_html(main_intro).replace(chr(10), '<br/>')}</p>")
+def build_html(epics, reqs_by_epic):
+    html = []
 
-                if main_images_html:
-                    html.append(main_images_html)
+    epics = sorted(epics, key=lambda x: int(x["key"].split("-")[1]))
 
-            # Description
+    for epic in epics:
+        epic_key = epic["key"]
+        ef = epic["fields"]
+        requirements = reqs_by_epic.get(epic_key, [])
+        requirements = sorted(requirements, key=lambda x: int(x["key"].split("-")[1]))
+
+        html.append(f"<h1>{escape_html(ef.get('summary', ''))}</h1>")
+
+        epic_description = adf_to_text(ef.get("description"))
+        if epic_description.strip():
             html.append("<h2>Description</h2>")
-            html.append(f"<p>{escape_html(adf_to_text(ef.get('description'))).replace(chr(10), '<br/>')}</p>")
+            html.append(f"<p>{escape_html(epic_description).replace(chr(10), '<br/>')}</p>")
 
-            # Steps
-            html.append("<h2>Steps</h2>")
-            html.append(steps_to_html(adf_to_text(ef.get("customfield_10230"))))
+        if requirements:
+            png_req = None
+            other_reqs = []
 
-            # Specific requirements
+            for req in requirements:
+                if png_req is None and has_png_attachment(req):
+                    png_req = req
+                else:
+                    other_reqs.append(req)
+
             html.append("<h2>Requirements</h2>")
-            html.append("<ul>")
 
-            specific_reqs = sorted(specific_reqs, key=lambda x: int(x["key"].split("-")[1]))
+            if png_req:
+                html.append(build_requirement_html(png_req))
 
-            for r in specific_reqs:
-                rf = r["fields"]
-                html.append("<li>")
-                html.append(f"<strong>{escape_html(clean_req(rf.get('summary', '')))}</strong><br/>")
-                html.append(escape_html(adf_to_text(rf.get("description"))).replace("\n", "<br/>"))
-                html.append("</li>")
+            for req in other_reqs:
+                html.append(build_requirement_html(req))
 
-            html.append("</ul>")
-            html.append("<hr/>")
+        html.append("<hr/>")
 
     return "\n".join(html)
 
 
 def generate_ssd(author: str):
-    jql = f'project = {PROJECT_KEY} AND issuetype in ("SSD Section", Epic, Requirement)'
+    jql = f'project = {PROJECT_KEY} AND issuetype in (Epic, Requirement)'
     issues = jira_search(jql)
 
-    sections = []
-    epics_by_section = {}
+    epics = []
     reqs_by_epic = {}
 
     for issue in issues:
         issue_type = issue["fields"]["issuetype"]["name"]
         fields = issue["fields"]
 
-        if issue_type == "SSD Section":
-            sections.append(issue)
-
-        elif issue_type == "Epic":
-            section_key = get_issue_picker_key(fields.get("customfield_10298"))
-            if section_key:
-                epics_by_section.setdefault(section_key, []).append(issue)
+        if issue_type == "Epic":
+            epics.append(issue)
 
         elif issue_type == "Requirement":
-            req_type = get_select_value(fields.get("customfield_10299"))
-
-            if req_type in ("main", "specific"):
-                parent = fields.get("parent")
-                if parent and parent.get("key"):
-                    parent_key = parent["key"]
-                    reqs_by_epic.setdefault(parent_key, []).append(issue)
-
-    sections = sorted(sections, key=lambda x: int(x["key"].split("-")[1]))
+            parent = fields.get("parent")
+            if parent and parent.get("key"):
+                parent_key = parent["key"]
+                reqs_by_epic.setdefault(parent_key, []).append(issue)
 
     page = get_confluence_page()
     existing_html = page.get("body", {}).get("storage", {}).get("value", "")
 
     revision_html = build_revision_history_html(existing_html, author)
-    content_html = build_html(sections, epics_by_section, reqs_by_epic)
+    content_html = build_html(epics, reqs_by_epic)
     full_html = revision_html + content_html
 
     updated = update_confluence_page(
