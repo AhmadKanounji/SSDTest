@@ -340,7 +340,7 @@ def build_revision_history_html(existing_html: str, author: str):
     return table_html
 
 
-def build_html(sections, epics_by_section, general_reqs_by_section, reqs_by_epic):
+def build_html(sections, epics_by_section, reqs_by_epic):
     html = []
 
     for section in sections:
@@ -354,22 +354,6 @@ def build_html(sections, epics_by_section, general_reqs_by_section, reqs_by_epic
 
         if section_description.strip():
             html.append(f"<p>{escape_html(section_description).replace(chr(10), '<br/>')}</p>")
-
-        # General Requirements
-        html.append("<h2>General Requirements</h2>")
-        html.append("<ul>")
-
-        general_reqs = general_reqs_by_section.get(section_key, [])
-        general_reqs = sorted(general_reqs, key=lambda x: int(x["key"].split("-")[1]))
-
-        for req in general_reqs:
-            rf = req["fields"]
-            html.append("<li>")
-            html.append(f"<strong>{escape_html(clean_req(rf.get('summary', '')))}</strong><br/>")
-            html.append(escape_html(adf_to_text(rf.get("description"))).replace("\n", "<br/>"))
-            html.append("</li>")
-
-        html.append("</ul>")
 
         # UCs under this section
         epics = epics_by_section.get(section_key, [])
@@ -417,7 +401,7 @@ def build_html(sections, epics_by_section, general_reqs_by_section, reqs_by_epic
             html.append("<h2>Steps</h2>")
             html.append(steps_to_html(adf_to_text(ef.get("customfield_10230"))))
 
-            # Specific requirements only
+            # Specific requirements
             html.append("<h2>Requirements</h2>")
             html.append("<ul>")
 
@@ -442,7 +426,6 @@ def generate_ssd(author: str):
 
     sections = []
     epics_by_section = {}
-    general_reqs_by_section = {}
     reqs_by_epic = {}
 
     for issue in issues:
@@ -460,12 +443,7 @@ def generate_ssd(author: str):
         elif issue_type == "Requirement":
             req_type = get_select_value(fields.get("customfield_10299"))
 
-            if req_type == "general":
-                section_key = get_issue_picker_key(fields.get("customfield_10298"))
-                if section_key:
-                    general_reqs_by_section.setdefault(section_key, []).append(issue)
-
-            elif req_type in ("main", "specific"):
+            if req_type in ("main", "specific"):
                 parent = fields.get("parent")
                 if parent and parent.get("key"):
                     parent_key = parent["key"]
@@ -477,7 +455,7 @@ def generate_ssd(author: str):
     existing_html = page.get("body", {}).get("storage", {}).get("value", "")
 
     revision_html = build_revision_history_html(existing_html, author)
-    content_html = build_html(sections, epics_by_section, general_reqs_by_section, reqs_by_epic)
+    content_html = build_html(sections, epics_by_section, reqs_by_epic)
     full_html = revision_html + content_html
 
     updated = update_confluence_page(
