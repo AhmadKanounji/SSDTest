@@ -289,26 +289,28 @@ def build_html(epics, reqs_by_epic):
 
         html.append(f"<h1>{escape_html(ef.get('summary', ''))}</h1>")
 
+        png_req = None
+        other_reqs = []
+
+        for req in requirements:
+            if png_req is None and has_png_attachment(req):
+                png_req = req
+            else:
+                other_reqs.append(req)
+
+        # 1) Show the requirement containing the diagram first
+        if png_req:
+            html.append(build_requirement_html(png_req))
+
+        # 2) Then show epic description
         epic_description = adf_to_text(ef.get("description"))
         if epic_description.strip():
             html.append("<h2>Description</h2>")
             html.append(f"<p>{escape_html(epic_description).replace(chr(10), '<br/>')}</p>")
 
-        if requirements:
-            png_req = None
-            other_reqs = []
-
-            for req in requirements:
-                if png_req is None and has_png_attachment(req):
-                    png_req = req
-                else:
-                    other_reqs.append(req)
-
+        # 3) Then show the remaining requirements, if any
+        if other_reqs:
             html.append("<h2>Requirements</h2>")
-
-            if png_req:
-                html.append(build_requirement_html(png_req))
-
             for req in other_reqs:
                 html.append(build_requirement_html(req))
 
