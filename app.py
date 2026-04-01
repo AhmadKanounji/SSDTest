@@ -173,11 +173,9 @@ def adf_to_html(adf):
             inner = "".join(render_node(child) for child in content)
             return f"<pre><code>{inner}</code></pre>"
 
-        # Ignore embedded Jira media nodes in description
         if node_type in ("mediaSingle", "media", "mediaGroup"):
             return ""
 
-        # fallback
         return "".join(render_node(child) for child in content)
 
     return render_node(adf)
@@ -314,15 +312,93 @@ def has_png_attachment(issue):
     return False
 
 
+def get_existing_confluence_attachments():
+    attachments = {}
+    start = 0
+    limit = 100
+
+    while True:
+        url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
+        params = {"start": start, "limit": limit}
+        r = requests.get(url, params=params, auth=auth)
+        r.raise_for_status()
+        data = r.json()
+
+        for result in data.get("results", []):
+            title = result.get("title")
+            if title:
+                attachments[title] = result
+
+        size = len(data.get("results", []))
+        if size < limit:
+            break
+
+        start += limit
+
+    return attachments
+
+
+def download_jira_attachment(attachment):
+    content_url = attachment.get("content")
+    filename = attachment.get("filename") or "attachment.bin"
+    mime_type = attachment.get("mimeType") or "application/octet-stream"
+
+    if not content_url:
+        return None
+
+    r = requests.get(content_url, auth=auth)
+    r.raise_for_status()
+
+    return {
+        "filename": filename,
+        "mime_type": mime_type,
+        "content": r.content,
+    }
+
+
+def upload_attachment_to_confluence(filename, file_bytes, mime_type):
+    # If attachment exists, update it
+    existing = get_existing_confluence_attachments().get(filename)
+
+    if existing:
+        attachment_id = existing["id"]
+        url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment/{attachment_id}/data"
+    else:
+        url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
+
+    headers = {"X-Atlassian-Token": "no-check"}
+    files = {
+        "file": (filename, file_bytes, mime_type)
+    }
+
+    r = requests.post(url, auth=auth, headers=headers, files=files)
+    r.raise_for_status()
+    return r.json()
+
+
+def ensure_attachment_on_confluence(attachment):
+    downloaded = download_jira_attachment(attachment)
+    if not downloaded:
+        return None
+
+    upload_attachment_to_confluence(
+        filename=downloaded["filename"],
+        file_bytes=downloaded["content"],
+        mime_type=downloaded["mime_type"],
+    )
+
+    return downloaded["filename"]
+
+
 def attachment_images_to_html(attachments):
     if not attachments:
         return ""
 
-    html = []
+    html_parts = []
 
     for att in attachments:
         mime = (att.get("mimeType") or "").lower()
-        filename = (att.get("filename") or "")
+        filename = att.get("filename") or ""
 
         is_image = mime.startswith("image/") or filename.lower().endswith(
             (".png", ".jpg", ".jpeg", ".gif", ".webp")
@@ -331,15 +407,15 @@ def attachment_images_to_html(attachments):
         if not is_image:
             continue
 
-        html.append(
-            f"""
-            <ac:image>
-                <ri:attachment ri:filename="{escape_html(filename)}"/>
-            </ac:image>
-            """
+        confluence_filename = ensure_attachment_on_confluence(att)
+        if not confluence_filename:
+            continue
+
+        html_parts.append(
+            f'<p><ac:image ac:width="900"><ri:attachment ri:filename="{escape_html(confluence_filename)}" /></ac:image></p>'
         )
 
-    return "\n".join(html)
+    return "\n".join(html_parts)
 
 
 def build_requirement_html(req):
@@ -381,17 +457,17 @@ def build_html(epics, reqs_by_epic):
             else:
                 other_reqs.append(req)
 
-        # 1) Requirement containing the diagram first
+        # Requirement containing the diagram first
         if png_req:
             html.append(build_requirement_html(png_req))
 
-        # 2) Epic description after the diagram requirement
+        # Epic description after the diagram requirement
         epic_description_html = adf_to_html(ef.get("description"))
         if epic_description_html.strip():
             html.append("<h2>Description</h2>")
             html.append(epic_description_html)
 
-        # 3) Remaining normal requirements after description
+        # Remaining normal requirements
         if other_reqs:
             html.append("<h2>Requirements</h2>")
             for req in other_reqs:
