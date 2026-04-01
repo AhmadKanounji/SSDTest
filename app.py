@@ -322,24 +322,21 @@ def attachment_images_to_html(attachments):
 
     for att in attachments:
         mime = (att.get("mimeType") or "").lower()
-        filename = (att.get("filename") or "").lower()
-        content_url = att.get("content")
-        thumbnail_url = att.get("thumbnail")
+        filename = (att.get("filename") or "")
 
-        is_image = mime.startswith("image/") or filename.endswith(
+        is_image = mime.startswith("image/") or filename.lower().endswith(
             (".png", ".jpg", ".jpeg", ".gif", ".webp")
         )
 
         if not is_image:
             continue
 
-        url = content_url or thumbnail_url
-        if not url:
-            continue
-
         html.append(
-            f'<p><img src="{escape_html(url)}" alt="{escape_html(filename or "diagram")}" '
-            f'style="max-width:100%; height:auto;" /></p>'
+            f"""
+            <ac:image>
+                <ri:attachment ri:filename="{escape_html(filename)}"/>
+            </ac:image>
+            """
         )
 
     return "\n".join(html)
