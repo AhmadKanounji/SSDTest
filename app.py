@@ -97,6 +97,92 @@ def adf_to_text(adf):
     return "".join(parts).strip()
 
 
+def adf_to_html(adf):
+    if not adf:
+        return ""
+
+    if isinstance(adf, str):
+        return f"<p>{escape_html(adf)}</p>"
+
+    def render_node(node):
+        if not isinstance(node, dict):
+            return ""
+
+        node_type = node.get("type")
+        content = node.get("content", [])
+
+        if node_type == "doc":
+            return "".join(render_node(child) for child in content)
+
+        if node_type == "paragraph":
+            inner = "".join(render_node(child) for child in content).strip()
+            return f"<p>{inner}</p>" if inner else ""
+
+        if node_type == "text":
+            text = escape_html(node.get("text", ""))
+            marks = node.get("marks", [])
+
+            for mark in marks:
+                mark_type = mark.get("type")
+                if mark_type == "strong":
+                    text = f"<strong>{text}</strong>"
+                elif mark_type == "em":
+                    text = f"<em>{text}</em>"
+                elif mark_type == "underline":
+                    text = f"<u>{text}</u>"
+                elif mark_type == "strike":
+                    text = f"<s>{text}</s>"
+                elif mark_type == "code":
+                    text = f"<code>{text}</code>"
+                elif mark_type == "link":
+                    href = mark.get("attrs", {}).get("href", "")
+                    if href:
+                        text = f'<a href="{escape_html(href)}">{text}</a>'
+
+            return text
+
+        if node_type == "hardBreak":
+            return "<br/>"
+
+        if node_type == "heading":
+            level = node.get("attrs", {}).get("level", 1)
+            level = min(max(level, 1), 6)
+            inner = "".join(render_node(child) for child in content)
+            return f"<h{level}>{inner}</h{level}>"
+
+        if node_type == "orderedList":
+            inner = "".join(render_node(child) for child in content)
+            return f"<ol>{inner}</ol>"
+
+        if node_type == "bulletList":
+            inner = "".join(render_node(child) for child in content)
+            return f"<ul>{inner}</ul>"
+
+        if node_type == "listItem":
+            inner = "".join(render_node(child) for child in content)
+            return f"<li>{inner}</li>"
+
+        if node_type == "blockquote":
+            inner = "".join(render_node(child) for child in content)
+            return f"<blockquote>{inner}</blockquote>"
+
+        if node_type == "rule":
+            return "<hr/>"
+
+        if node_type == "codeBlock":
+            inner = "".join(render_node(child) for child in content)
+            return f"<pre><code>{inner}</code></pre>"
+
+        # Ignore embedded Jira media nodes in description
+        if node_type in ("mediaSingle", "media", "mediaGroup"):
+            return ""
+
+        # fallback
+        return "".join(render_node(child) for child in content)
+
+    return render_node(adf)
+
+
 def escape_html(text: str) -> str:
     text = text or ""
     return (
@@ -298,17 +384,17 @@ def build_html(epics, reqs_by_epic):
             else:
                 other_reqs.append(req)
 
-        # 1) Show the requirement containing the diagram first
+        # 1) Requirement containing the diagram first
         if png_req:
             html.append(build_requirement_html(png_req))
 
-        # 2) Then show epic description
-        epic_description = adf_to_text(ef.get("description"))
-        if epic_description.strip():
+        # 2) Epic description after the diagram requirement
+        epic_description_html = adf_to_html(ef.get("description"))
+        if epic_description_html.strip():
             html.append("<h2>Description</h2>")
-            html.append(f"<p>{escape_html(epic_description).replace(chr(10), '<br/>')}</p>")
+            html.append(epic_description_html)
 
-        # 3) Then show the remaining requirements, if any
+        # 3) Remaining normal requirements after description
         if other_reqs:
             html.append("<h2>Requirements</h2>")
             for req in other_reqs:
