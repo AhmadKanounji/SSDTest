@@ -26,27 +26,47 @@ REVISION_START = "<!-- REVISION_HISTORY_START -->"
 REVISION_END = "<!-- REVISION_HISTORY_END -->"
 
 
+def log(message: str):
+    print(f"[SSD] {datetime.now(ZoneInfo('Asia/Beirut')).isoformat()} - {message}", flush=True)
+
+
 def jira_search(jql: str):
+    log(f"jira_search started - JQL: {jql}")
+
     url = f"{JIRA_BASE}/rest/api/3/search/jql"
     params = {
         "jql": jql,
         "maxResults": 200,
         "fields": "summary,description,issuetype,parent,attachment",
     }
+
     r = requests.get(url, params=params, auth=auth)
+    log(f"jira_search response status: {r.status_code}")
     r.raise_for_status()
-    return r.json()["issues"]
+
+    issues = r.json()["issues"]
+    log(f"jira_search finished - {len(issues)} issues returned")
+    return issues
 
 
 def get_confluence_page():
+    log(f"get_confluence_page started - page id: {CONFLUENCE_PAGE_ID}")
+
     url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}"
     params = {"expand": "version,body.storage"}
+
     r = requests.get(url, params=params, auth=auth)
+    log(f"get_confluence_page response status: {r.status_code}")
     r.raise_for_status()
-    return r.json()
+
+    page = r.json()
+    log(f"get_confluence_page finished - current version: {page['version']['number']}")
+    return page
 
 
 def update_confluence_page(title: str, html_value: str, version_number: int):
+    log(f"update_confluence_page started - target version: {version_number}")
+
     url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}"
     payload = {
         "id": CONFLUENCE_PAGE_ID,
@@ -62,8 +82,12 @@ def update_confluence_page(title: str, html_value: str, version_number: int):
     }
 
     r = requests.put(url, json=payload, auth=auth)
+    log(f"update_confluence_page response status: {r.status_code}")
     r.raise_for_status()
-    return r.json()
+
+    updated = r.json()
+    log(f"update_confluence_page finished - new version: {updated['version']['number']}")
+    return updated
 
 
 def adf_to_text(adf):
@@ -313,6 +337,8 @@ def has_png_attachment(issue):
 
 
 def get_existing_confluence_attachments():
+    log("get_existing_confluence_attachments started")
+
     attachments = {}
     start = 0
     limit = 100
@@ -320,8 +346,11 @@ def get_existing_confluence_attachments():
     while True:
         url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
         params = {"start": start, "limit": limit}
+
         r = requests.get(url, params=params, auth=auth)
+        log(f"get_existing_confluence_attachments page start={start}, status={r.status_code}")
         r.raise_for_status()
+
         data = r.json()
 
         for result in data.get("results", []):
@@ -335,6 +364,7 @@ def get_existing_confluence_attachments():
 
         start += limit
 
+    log(f"get_existing_confluence_attachments finished - total={len(attachments)}")
     return attachments
 
 
@@ -344,10 +374,16 @@ def download_jira_attachment(attachment):
     mime_type = attachment.get("mimeType") or "application/octet-stream"
 
     if not content_url:
+        log(f"download_jira_attachment skipped - no content URL for {filename}")
         return None
 
+    log(f"download_jira_attachment started - {filename}")
+
     r = requests.get(content_url, auth=auth)
+    log(f"download_jira_attachment response status for {filename}: {r.status_code}")
     r.raise_for_status()
+
+    log(f"download_jira_attachment finished - {filename}, size={len(r.content)} bytes")
 
     return {
         "filename": filename,
@@ -357,14 +393,17 @@ def download_jira_attachment(attachment):
 
 
 def upload_attachment_to_confluence(filename, file_bytes, mime_type):
-    # If attachment exists, update it
+    log(f"upload_attachment_to_confluence started - {filename}")
+
     existing = get_existing_confluence_attachments().get(filename)
 
     if existing:
         attachment_id = existing["id"]
         url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment/{attachment_id}/data"
+        log(f"upload_attachment_to_confluence updating existing attachment - {filename}, id={attachment_id}")
     else:
         url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
+        log(f"upload_attachment_to_confluence creating new attachment - {filename}")
 
     headers = {"X-Atlassian-Token": "no-check"}
     files = {
@@ -372,13 +411,20 @@ def upload_attachment_to_confluence(filename, file_bytes, mime_type):
     }
 
     r = requests.post(url, auth=auth, headers=headers, files=files)
+    log(f"upload_attachment_to_confluence response status for {filename}: {r.status_code}")
     r.raise_for_status()
+
+    log(f"upload_attachment_to_confluence finished - {filename}")
     return r.json()
 
 
 def ensure_attachment_on_confluence(attachment):
+    filename = attachment.get("filename") or "unknown"
+    log(f"ensure_attachment_on_confluence started - {filename}")
+
     downloaded = download_jira_attachment(attachment)
     if not downloaded:
+        log(f"ensure_attachment_on_confluence skipped - could not download {filename}")
         return None
 
     upload_attachment_to_confluence(
@@ -387,6 +433,7 @@ def ensure_attachment_on_confluence(attachment):
         mime_type=downloaded["mime_type"],
     )
 
+    log(f"ensure_attachment_on_confluence finished - {downloaded['filename']}")
     return downloaded["filename"]
 
 
@@ -405,10 +452,14 @@ def attachment_images_to_html(attachments):
         )
 
         if not is_image:
+            log(f"attachment_images_to_html skipped non-image attachment - {filename}")
             continue
+
+        log(f"attachment_images_to_html processing image attachment - {filename}")
 
         confluence_filename = ensure_attachment_on_confluence(att)
         if not confluence_filename:
+            log(f"attachment_images_to_html skipped - failed to ensure attachment on Confluence for {filename}")
             continue
 
         html_parts.append(
@@ -420,7 +471,11 @@ def attachment_images_to_html(attachments):
 
 def build_requirement_html(req):
     rf = req["fields"]
+    req_key = req.get("key", "UNKNOWN")
     req_title = clean_req(rf.get("summary", ""))
+
+    log(f"build_requirement_html - processing requirement {req_key} - {req_title}")
+
     req_description = adf_to_text(rf.get("description"))
     req_images_html = attachment_images_to_html(rf.get("attachment", []))
 
@@ -446,6 +501,8 @@ def build_html(epics, reqs_by_epic):
         requirements = reqs_by_epic.get(epic_key, [])
         requirements = sorted(requirements, key=lambda x: int(x["key"].split("-")[1]))
 
+        log(f"build_html - processing epic {epic_key} with {len(requirements)} requirements")
+
         html.append(f"<h1>{escape_html(ef.get('summary', ''))}</h1>")
 
         png_req = None
@@ -457,17 +514,15 @@ def build_html(epics, reqs_by_epic):
             else:
                 other_reqs.append(req)
 
-        # Requirement containing the diagram first
         if png_req:
+            log(f"build_html - epic {epic_key} has diagram requirement {png_req.get('key', 'UNKNOWN')}")
             html.append(build_requirement_html(png_req))
 
-        # Epic description after the diagram requirement
         epic_description_html = adf_to_html(ef.get("description"))
         if epic_description_html.strip():
             html.append("<h2>Description</h2>")
             html.append(epic_description_html)
 
-        # Remaining normal requirements
         if other_reqs:
             html.append("<h2>Requirements</h2>")
             for req in other_reqs:
@@ -479,6 +534,8 @@ def build_html(epics, reqs_by_epic):
 
 
 def generate_ssd(author: str):
+    log("generate_ssd started")
+
     jql = f'project = {PROJECT_KEY} AND issuetype in (Epic, Requirement)'
     issues = jira_search(jql)
 
@@ -498,12 +555,20 @@ def generate_ssd(author: str):
                 parent_key = parent["key"]
                 reqs_by_epic.setdefault(parent_key, []).append(issue)
 
+    log(f"generate_ssd - epics count: {len(epics)}")
+    log(f"generate_ssd - parent buckets count: {len(reqs_by_epic)}")
+
     page = get_confluence_page()
     existing_html = page.get("body", {}).get("storage", {}).get("value", "")
 
+    log("generate_ssd - building revision history html")
     revision_html = build_revision_history_html(existing_html, author)
+
+    log("generate_ssd - building content html")
     content_html = build_html(epics, reqs_by_epic)
+
     full_html = revision_html + content_html
+    log(f"generate_ssd - final html length: {len(full_html)}")
 
     updated = update_confluence_page(
         page["title"],
@@ -511,16 +576,19 @@ def generate_ssd(author: str):
         page["version"]["number"] + 1,
     )
 
+    log("generate_ssd finished")
     return updated
 
 
 @app.get("/")
 def health():
+    log("GET / health check")
     return {"status": "ok"}
 
 
 @app.get("/debug-config")
 def debug_config():
+    log("GET /debug-config")
     return {
         "domain": ATLASSIAN_DOMAIN,
         "email": EMAIL,
@@ -535,14 +603,23 @@ def run():
     try:
         data = request.get_json(silent=True) or {}
         author = data.get("author", EMAIL)
+
+        log("POST /generate-ssd received")
+        log(f"Author = {author}")
+
         result = generate_ssd(author)
+
+        log(f"POST /generate-ssd completed successfully - new page version: {result['version']['number']}")
+
         return {
             "status": "success",
             "version": result["version"]["number"],
         }
     except Exception as e:
+        log(f"POST /generate-ssd failed: {repr(e)}")
         return {"status": "error", "message": str(e)}, 500
 
 
 if __name__ == "__main__":
+    log("Starting Flask app")
     app.run()
