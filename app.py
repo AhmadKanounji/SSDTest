@@ -25,6 +25,14 @@ auth = HTTPBasicAuth(EMAIL, API_TOKEN)
 REVISION_START = "<!-- REVISION_HISTORY_START -->"
 REVISION_END = "<!-- REVISION_HISTORY_END -->"
 
+ATTACHMENT_CACHE = None
+
+def get_existing_confluence_attachments_cached():
+    global ATTACHMENT_CACHE
+    if ATTACHMENT_CACHE is None:
+        ATTACHMENT_CACHE = get_existing_confluence_attachments()
+    return ATTACHMENT_CACHE
+
 
 def log(message: str):
     print(f"[SSD] {datetime.now(ZoneInfo('Asia/Beirut')).isoformat()} - {message}", flush=True)
@@ -395,7 +403,7 @@ def download_jira_attachment(attachment):
 def upload_attachment_to_confluence(filename, file_bytes, mime_type):
     log(f"upload_attachment_to_confluence started - {filename}")
 
-    existing = get_existing_confluence_attachments().get(filename)
+    existing = get_existing_confluence_attachments_cached().get(filename)
 
     if existing:
         attachment_id = existing["id"]
@@ -534,6 +542,9 @@ def build_html(epics, reqs_by_epic):
 
 
 def generate_ssd(author: str):
+    global ATTACHMENT_CACHE
+    ATTACHMENT_CACHE = None
+    
     log("generate_ssd started")
 
     jql = f'project = {PROJECT_KEY} AND issuetype in (Epic, Requirement)'
