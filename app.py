@@ -312,38 +312,45 @@ def extract_existing_meta(existing_html: str):
     if not existing_html:
         return None
 
-    text = html_lib.unescape(existing_html)
+    pattern = (
+        r'<ac:plain-text-body><!\[CDATA\['
+        r'(.*?)'
+        r'\]\]></ac:plain-text-body>'
+    )
 
-    pattern = re.escape(META_START) + r"\s*(\{.*?\})\s*" + re.escape(META_END)
-    match = re.search(pattern, text, flags=re.DOTALL)
+    matches = re.findall(pattern, existing_html, flags=re.DOTALL | re.IGNORECASE)
 
-    if not match:
-        return None
+    for block in matches:
+        block = block.strip()
 
-    raw_json = match.group(1).strip()
-    if not raw_json:
-        return None
+        if META_START not in block or META_END not in block:
+            continue
 
-    try:
-        return json.loads(raw_json)
-    except Exception as e:
-        log(f"extract_existing_meta failed: {repr(e)}")
-        return None
+        start_idx = block.find(META_START) + len(META_START)
+        end_idx = block.find(META_END)
+
+        raw_json = block[start_idx:end_idx].strip()
+        if not raw_json:
+            continue
+
+        try:
+            return json.loads(raw_json)
+        except Exception as e:
+            log(f"extract_existing_meta failed on candidate block: {repr(e)}")
+
+    return None
 
 
 def build_meta_html(revision_version: str, snapshot: dict):
     meta_json = build_meta_payload(revision_version, snapshot)
-    escaped = escape_html(meta_json)
 
     return (
         "<h2>Internal Metadata</h2>"
         '<ac:structured-macro ac:name="expand">'
         '<ac:parameter ac:name="title">SSD Internal Metadata - Do Not Edit</ac:parameter>'
-        '<ac:rich-text-body>'
-        f"<p>{META_START}</p>"
-        f"<pre>{escaped}</pre>"
-        f"<p>{META_END}</p>"
-        '</ac:rich-text-body>'
+        '<ac:plain-text-body><![CDATA['
+        f'{META_START}\n{meta_json}\n{META_END}'
+        ']]></ac:plain-text-body>'
         '</ac:structured-macro>'
     )
 
