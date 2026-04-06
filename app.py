@@ -24,7 +24,8 @@ CONF_BASE = f"https://{ATLASSIAN_DOMAIN}/wiki"
 
 auth = HTTPBasicAuth(EMAIL, API_TOKEN)
 
-SNAPSHOT_TITLE = "JIRA SNAPSHOT - DO NOT EDIT"
+META_START = "SSD_META_START"
+META_END = "SSD_META_END"
 
 ATTACHMENT_CACHE = None
 
@@ -288,41 +289,61 @@ def build_jira_snapshot(issues):
     return snapshot
 
 
-def extract_existing_snapshot(existing_html: str):
+def parse_version_string(version_str: str) -> float:
+    try:
+        return round(float(version_str), 1)
+    except Exception:
+        return 0.0
+
+
+def format_version(version_num: float) -> str:
+    return f"{version_num:.1f}"
+
+
+def build_meta_payload(revision_version: str, snapshot: dict) -> str:
+    payload = {
+        "revision_version": revision_version,
+        "snapshot": snapshot,
+    }
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+def extract_existing_meta(existing_html: str):
     if not existing_html:
-        return {}
+        return None
 
-    pattern = (
-        r'<ac:structured-macro[^>]*ac:name="expand"[^>]*>.*?'
-        r'<ac:parameter[^>]*ac:name="title"[^>]*>\s*' + re.escape(SNAPSHOT_TITLE) + r'\s*</ac:parameter>.*?'
-        r'<ac:plain-text-body><!\[CDATA\[(.*?)\]\]></ac:plain-text-body>.*?'
-        r'</ac:structured-macro>'
-    )
+    text = html_lib.unescape(existing_html)
 
-    match = re.search(pattern, existing_html, flags=re.DOTALL | re.IGNORECASE)
+    pattern = re.escape(META_START) + r"\s*(\{.*?\})\s*" + re.escape(META_END)
+    match = re.search(pattern, text, flags=re.DOTALL)
+
     if not match:
-        return {}
+        return None
 
     raw_json = match.group(1).strip()
     if not raw_json:
-        return {}
+        return None
 
     try:
         return json.loads(raw_json)
     except Exception as e:
-        log(f"extract_existing_snapshot failed: {repr(e)}")
-        return {}
+        log(f"extract_existing_meta failed: {repr(e)}")
+        return None
 
 
-def build_snapshot_html(snapshot: dict):
-    snapshot_json = json.dumps(snapshot, ensure_ascii=False, sort_keys=True)
+def build_meta_html(revision_version: str, snapshot: dict):
+    meta_json = build_meta_payload(revision_version, snapshot)
+    escaped = escape_html(meta_json)
 
     return (
+        "<h2>Internal Metadata</h2>"
         '<ac:structured-macro ac:name="expand">'
-        f'<ac:parameter ac:name="title">{escape_html(SNAPSHOT_TITLE)}</ac:parameter>'
-        '<ac:plain-text-body><![CDATA['
-        f'{snapshot_json}'
-        ']]></ac:plain-text-body>'
+        '<ac:parameter ac:name="title">SSD Internal Metadata - Do Not Edit</ac:parameter>'
+        '<ac:rich-text-body>'
+        f"<p>{META_START}</p>"
+        f"<pre>{escaped}</pre>"
+        f"<p>{META_END}</p>"
+        '</ac:rich-text-body>'
         '</ac:structured-macro>'
     )
 
@@ -371,15 +392,17 @@ def extract_existing_revision_rows(existing_html: str):
     table_html = match.group(1)
 
     rows = []
-    tr_matches = re.findall(r"<tr>(.*?)</tr>", table_html, flags=re.DOTALL | re.IGNORECASE)
+    tr_matches = re.findall(r"<tr[^>]*>(.*?)</tr>", table_html, flags=re.DOTALL | re.IGNORECASE)
+
     for tr in tr_matches:
-        td_matches = re.findall(r"<td>(.*?)</td>", tr, flags=re.DOTALL | re.IGNORECASE)
+        td_matches = re.findall(r"<td[^>]*>(.*?)</td>", tr, flags=re.DOTALL | re.IGNORECASE)
         if len(td_matches) != 4:
             continue
 
         version = strip_tags(td_matches[0])
         date = strip_tags(td_matches[1])
         author = strip_tags(td_matches[2])
+
         modification = re.sub(r"<br\s*/?>", "\n", td_matches[3], flags=re.IGNORECASE)
         modification = strip_tags(modification)
 
@@ -393,36 +416,16 @@ def extract_existing_revision_rows(existing_html: str):
     return rows
 
 
-def get_next_revision_version(existing_rows):
-    if not existing_rows:
-        return "0.1"
-
-    versions = []
-    for row in existing_rows:
-        try:
-            versions.append(float(row["version"]))
-        except Exception:
-            pass
-
-    if not versions:
-        return "0.1"
-
-    next_version = round(max(versions) + 0.1, 1)
-    return f"{next_version:.1f}"
-
-
-def build_revision_history_html(existing_html: str, author: str, change_lines=None):
-    existing_rows = extract_existing_revision_rows(existing_html)
-    next_version = get_next_revision_version(existing_rows)
+def build_revision_history_html(existing_rows, author: str, new_version: str, change_lines=None):
     today = datetime.now(ZoneInfo("Asia/Beirut")).strftime("%d/%m/%Y")
 
     if not change_lines:
         modification_text = "SSD generated"
     else:
-        modification_text = "<br/>".join(escape_html(line) for line in change_lines)
+        modification_text = "\n".join(change_lines)
 
     new_row = {
-        "version": next_version,
+        "version": new_version,
         "date": today,
         "author": author or EMAIL,
         "modification": modification_text,
@@ -442,7 +445,7 @@ def build_revision_history_html(existing_html: str, author: str, change_lines=No
             "</tr>"
         )
 
-    table_html = (
+    return (
         "<h1>Revision History</h1>"
         '<table border="1" style="border-collapse:collapse; width:100%;">'
         "<thead>"
@@ -458,8 +461,6 @@ def build_revision_history_html(existing_html: str, author: str, change_lines=No
         "</tbody>"
         "</table>"
     )
-
-    return table_html
 
 
 def has_png_attachment(issue):
@@ -697,28 +698,43 @@ def generate_ssd(author: str):
                 parent_key = parent["key"]
                 reqs_by_epic.setdefault(parent_key, []).append(issue)
 
-    log(f"generate_ssd - epics count: {len(epics)}")
-    log(f"generate_ssd - parent buckets count: {len(reqs_by_epic)}")
-
     page = get_confluence_page()
     existing_html = page.get("body", {}).get("storage", {}).get("value", "")
 
-    old_snapshot = extract_existing_snapshot(existing_html)
+    existing_rows = extract_existing_revision_rows(existing_html)
+    existing_meta = extract_existing_meta(existing_html)
+
+    if existing_meta and isinstance(existing_meta, dict):
+        old_revision_version = existing_meta.get("revision_version", "0.0")
+        old_snapshot = existing_meta.get("snapshot", {}) or {}
+    else:
+        old_revision_version = "0.0"
+        old_snapshot = {}
+
     new_snapshot = build_jira_snapshot(issues)
 
     if not old_snapshot:
-        changes = None
-        log("generate_ssd - no previous snapshot found, using 'SSD generated'")
+        change_lines = None
     else:
-        changes = detect_changes(old_snapshot, new_snapshot)
-        log(f"generate_ssd - detected changes count: {len(changes)}")
+        change_lines = detect_changes(old_snapshot, new_snapshot)
 
-    revision_html = build_revision_history_html(existing_html, author, changes)
-    snapshot_html = build_snapshot_html(new_snapshot)
+    next_version_num = round(parse_version_string(old_revision_version) + 0.1, 1)
+    if next_version_num <= 0:
+        next_version_num = 0.1
+
+    new_revision_version = format_version(next_version_num)
+
+    revision_html = build_revision_history_html(
+        existing_rows=existing_rows,
+        author=author,
+        new_version=new_revision_version,
+        change_lines=change_lines,
+    )
+
+    meta_html = build_meta_html(new_revision_version, new_snapshot)
     content_html = build_html(epics, reqs_by_epic)
 
-    full_html = revision_html + snapshot_html + content_html
-    log(f"generate_ssd - final html length: {len(full_html)}")
+    full_html = revision_html + meta_html + content_html
 
     updated = update_confluence_page(
         page["title"],
@@ -726,7 +742,7 @@ def generate_ssd(author: str):
         page["version"]["number"] + 1,
     )
 
-    log("generate_ssd finished")
+    log(f"generate_ssd finished - revision version {new_revision_version}")
     return updated
 
 
