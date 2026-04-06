@@ -1,6 +1,8 @@
 import os
 import re
+import json
 import html as html_lib
+import hashlib
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -25,7 +27,11 @@ auth = HTTPBasicAuth(EMAIL, API_TOKEN)
 REVISION_START = "<!-- REVISION_HISTORY_START -->"
 REVISION_END = "<!-- REVISION_HISTORY_END -->"
 
+SNAPSHOT_START = "<!-- JIRA_SNAPSHOT_START -->"
+SNAPSHOT_END = "<!-- JIRA_SNAPSHOT_END -->"
+
 ATTACHMENT_CACHE = None
+
 
 def get_existing_confluence_attachments_cached():
     global ATTACHMENT_CACHE
@@ -232,6 +238,115 @@ def strip_tags(text: str) -> str:
     return html_lib.unescape(text).strip()
 
 
+def normalize_text(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "")).strip()
+
+
+def summarize_issue(snapshot_item):
+    key = snapshot_item.get("key", "")
+    summary = snapshot_item.get("summary", "")
+    return f"{key} - {summary}" if key else summary
+
+
+def issue_content_signature(issue):
+    fields = issue["fields"]
+    summary = normalize_text(fields.get("summary", ""))
+    description = normalize_text(adf_to_text(fields.get("description")))
+    parent_key = (fields.get("parent") or {}).get("key", "")
+
+    attachment_names = sorted(
+        (att.get("filename") or "").strip().lower()
+        for att in (fields.get("attachment") or [])
+    )
+
+    raw = json.dumps(
+        {
+            "summary": summary,
+            "description": description,
+            "parent_key": parent_key,
+            "attachments": attachment_names,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def build_jira_snapshot(issues):
+    snapshot = {}
+
+    for issue in issues:
+        key = issue["key"]
+        fields = issue["fields"]
+        issue_type = fields["issuetype"]["name"]
+
+        snapshot[key] = {
+            "key": key,
+            "type": issue_type,
+            "summary": fields.get("summary", ""),
+            "parent_key": (fields.get("parent") or {}).get("key"),
+            "signature": issue_content_signature(issue),
+        }
+
+    return snapshot
+
+
+def extract_existing_snapshot(existing_html: str):
+    if not existing_html:
+        return {}
+
+    start_idx = existing_html.find(SNAPSHOT_START)
+    end_idx = existing_html.find(SNAPSHOT_END)
+
+    if start_idx == -1 or end_idx == -1:
+        return {}
+
+    raw_block = existing_html[start_idx + len(SNAPSHOT_START):end_idx].strip()
+    if not raw_block:
+        return {}
+
+    try:
+        return json.loads(html_lib.unescape(raw_block))
+    except Exception as e:
+        log(f"extract_existing_snapshot failed: {repr(e)}")
+        return {}
+
+
+def build_snapshot_html(snapshot: dict):
+    snapshot_json = json.dumps(snapshot, ensure_ascii=False, sort_keys=True)
+    escaped = html_lib.escape(snapshot_json)
+    return f"{SNAPSHOT_START}{escaped}{SNAPSHOT_END}"
+
+
+def detect_changes(old_snapshot, new_snapshot):
+    changes = []
+
+    old_keys = set(old_snapshot.keys())
+    new_keys = set(new_snapshot.keys())
+
+    created_keys = sorted(new_keys - old_keys)
+    removed_keys = sorted(old_keys - new_keys)
+    common_keys = sorted(old_keys & new_keys)
+
+    for key in created_keys:
+        item = new_snapshot[key]
+        changes.append(f"{item['type']} {summarize_issue(item)} created")
+
+    for key in removed_keys:
+        item = old_snapshot[key]
+        changes.append(f"{item['type']} {summarize_issue(item)} removed")
+
+    for key in common_keys:
+        old_item = old_snapshot[key]
+        new_item = new_snapshot[key]
+
+        if old_item.get("signature") != new_item.get("signature"):
+            changes.append(f"{new_item['type']} {summarize_issue(new_item)} modified")
+
+    return changes
+
+
 def extract_existing_revision_rows(existing_html: str):
     if not existing_html:
         return []
@@ -284,16 +399,21 @@ def get_next_revision_version(existing_rows):
     return f"{next_version:.1f}"
 
 
-def build_revision_history_html(existing_html: str, author: str):
+def build_revision_history_html(existing_html: str, author: str, change_lines=None):
     existing_rows = extract_existing_revision_rows(existing_html)
     next_version = get_next_revision_version(existing_rows)
     today = datetime.now(ZoneInfo("Asia/Beirut")).strftime("%d/%m/%Y")
+
+    if not change_lines:
+        modification_text = "Initial SSD generation"
+    else:
+        modification_text = "<br/>".join(escape_html(line) for line in change_lines)
 
     new_row = {
         "version": next_version,
         "date": today,
         "author": author or EMAIL,
-        "modification": "SSD regenerated from Jira data",
+        "modification": modification_text,
     }
 
     all_rows = [new_row] + existing_rows
@@ -305,7 +425,7 @@ def build_revision_history_html(existing_html: str, author: str):
             f"<td>{escape_html(row['version'])}</td>"
             f"<td>{escape_html(row['date'])}</td>"
             f"<td>{escape_html(row['author'])}</td>"
-            f"<td>{escape_html(row['modification'])}</td>"
+            f"<td>{row['modification']}</td>"
             "</tr>"
         )
 
@@ -487,19 +607,19 @@ def build_requirement_html(req):
     req_description = adf_to_text(rf.get("description"))
     req_images_html = attachment_images_to_html(rf.get("attachment", []))
 
-    html = [f"<h3>{escape_html(req_title)}</h3>"]
+    html_parts = [f"<h3>{escape_html(req_title)}</h3>"]
 
     if req_description.strip():
-        html.append(f"<p>{escape_html(req_description).replace(chr(10), '<br/>')}</p>")
+        html_parts.append(f"<p>{escape_html(req_description).replace(chr(10), '<br/>')}</p>")
 
     if req_images_html:
-        html.append(req_images_html)
+        html_parts.append(req_images_html)
 
-    return "\n".join(html)
+    return "\n".join(html_parts)
 
 
 def build_html(epics, reqs_by_epic):
-    html = []
+    html_parts = []
 
     epics = sorted(epics, key=lambda x: int(x["key"].split("-")[1]))
 
@@ -511,7 +631,7 @@ def build_html(epics, reqs_by_epic):
 
         log(f"build_html - processing epic {epic_key} with {len(requirements)} requirements")
 
-        html.append(f"<h1>{escape_html(ef.get('summary', ''))}</h1>")
+        html_parts.append(f"<h1>{escape_html(ef.get('summary', ''))}</h1>")
 
         png_req = None
         other_reqs = []
@@ -524,27 +644,27 @@ def build_html(epics, reqs_by_epic):
 
         if png_req:
             log(f"build_html - epic {epic_key} has diagram requirement {png_req.get('key', 'UNKNOWN')}")
-            html.append(build_requirement_html(png_req))
+            html_parts.append(build_requirement_html(png_req))
 
         epic_description_html = adf_to_html(ef.get("description"))
         if epic_description_html.strip():
-            html.append("<h2>Description</h2>")
-            html.append(epic_description_html)
+            html_parts.append("<h2>Description</h2>")
+            html_parts.append(epic_description_html)
 
         if other_reqs:
-            html.append("<h2>Requirements</h2>")
+            html_parts.append("<h2>Requirements</h2>")
             for req in other_reqs:
-                html.append(build_requirement_html(req))
+                html_parts.append(build_requirement_html(req))
 
-        html.append("<hr/>")
+        html_parts.append("<hr/>")
 
-    return "\n".join(html)
+    return "\n".join(html_parts)
 
 
 def generate_ssd(author: str):
     global ATTACHMENT_CACHE
     ATTACHMENT_CACHE = None
-    
+
     log("generate_ssd started")
 
     jql = f'project = {PROJECT_KEY} AND issuetype in (Epic, Requirement)'
@@ -572,13 +692,17 @@ def generate_ssd(author: str):
     page = get_confluence_page()
     existing_html = page.get("body", {}).get("storage", {}).get("value", "")
 
-    log("generate_ssd - building revision history html")
-    revision_html = build_revision_history_html(existing_html, author)
+    old_snapshot = extract_existing_snapshot(existing_html)
+    new_snapshot = build_jira_snapshot(issues)
+    changes = detect_changes(old_snapshot, new_snapshot)
 
-    log("generate_ssd - building content html")
+    log(f"generate_ssd - detected changes count: {len(changes)}")
+
+    revision_html = build_revision_history_html(existing_html, author, changes)
+    snapshot_html = build_snapshot_html(new_snapshot)
     content_html = build_html(epics, reqs_by_epic)
 
-    full_html = revision_html + content_html
+    full_html = revision_html + snapshot_html + content_html
     log(f"generate_ssd - final html length: {len(full_html)}")
 
     updated = update_confluence_page(
