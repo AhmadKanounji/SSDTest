@@ -24,11 +24,7 @@ CONF_BASE = f"https://{ATLASSIAN_DOMAIN}/wiki"
 
 auth = HTTPBasicAuth(EMAIL, API_TOKEN)
 
-REVISION_START = "<!-- REVISION_HISTORY_START -->"
-REVISION_END = "<!-- REVISION_HISTORY_END -->"
-
-SNAPSHOT_START = "<!-- JIRA_SNAPSHOT_START -->"
-SNAPSHOT_END = "<!-- JIRA_SNAPSHOT_END -->"
+SNAPSHOT_TITLE = "JIRA SNAPSHOT - DO NOT EDIT"
 
 ATTACHMENT_CACHE = None
 
@@ -296,18 +292,23 @@ def extract_existing_snapshot(existing_html: str):
     if not existing_html:
         return {}
 
-    start_idx = existing_html.find(SNAPSHOT_START)
-    end_idx = existing_html.find(SNAPSHOT_END)
+    pattern = (
+        r'<ac:structured-macro[^>]*ac:name="expand"[^>]*>.*?'
+        r'<ac:parameter[^>]*ac:name="title"[^>]*>\s*' + re.escape(SNAPSHOT_TITLE) + r'\s*</ac:parameter>.*?'
+        r'<ac:plain-text-body><!\[CDATA\[(.*?)\]\]></ac:plain-text-body>.*?'
+        r'</ac:structured-macro>'
+    )
 
-    if start_idx == -1 or end_idx == -1:
+    match = re.search(pattern, existing_html, flags=re.DOTALL | re.IGNORECASE)
+    if not match:
         return {}
 
-    raw_block = existing_html[start_idx + len(SNAPSHOT_START):end_idx].strip()
-    if not raw_block:
+    raw_json = match.group(1).strip()
+    if not raw_json:
         return {}
 
     try:
-        return json.loads(html_lib.unescape(raw_block))
+        return json.loads(raw_json)
     except Exception as e:
         log(f"extract_existing_snapshot failed: {repr(e)}")
         return {}
@@ -315,8 +316,15 @@ def extract_existing_snapshot(existing_html: str):
 
 def build_snapshot_html(snapshot: dict):
     snapshot_json = json.dumps(snapshot, ensure_ascii=False, sort_keys=True)
-    escaped = html_lib.escape(snapshot_json)
-    return f"{SNAPSHOT_START}{escaped}{SNAPSHOT_END}"
+
+    return (
+        '<ac:structured-macro ac:name="expand">'
+        f'<ac:parameter ac:name="title">{escape_html(SNAPSHOT_TITLE)}</ac:parameter>'
+        '<ac:plain-text-body><![CDATA['
+        f'{snapshot_json}'
+        ']]></ac:plain-text-body>'
+        '</ac:structured-macro>'
+    )
 
 
 def detect_changes(old_snapshot, new_snapshot):
@@ -351,16 +359,19 @@ def extract_existing_revision_rows(existing_html: str):
     if not existing_html:
         return []
 
-    start_idx = existing_html.find(REVISION_START)
-    end_idx = existing_html.find(REVISION_END)
+    match = re.search(
+        r"<h1>\s*Revision History\s*</h1>\s*(<table.*?</table>)",
+        existing_html,
+        flags=re.DOTALL | re.IGNORECASE
+    )
 
-    if start_idx == -1 or end_idx == -1:
+    if not match:
         return []
 
-    block = existing_html[start_idx:end_idx]
+    table_html = match.group(1)
 
     rows = []
-    tr_matches = re.findall(r"<tr>(.*?)</tr>", block, flags=re.DOTALL | re.IGNORECASE)
+    tr_matches = re.findall(r"<tr>(.*?)</tr>", table_html, flags=re.DOTALL | re.IGNORECASE)
     for tr in tr_matches:
         td_matches = re.findall(r"<td>(.*?)</td>", tr, flags=re.DOTALL | re.IGNORECASE)
         if len(td_matches) != 4:
@@ -369,7 +380,8 @@ def extract_existing_revision_rows(existing_html: str):
         version = strip_tags(td_matches[0])
         date = strip_tags(td_matches[1])
         author = strip_tags(td_matches[2])
-        modification = strip_tags(td_matches[3])
+        modification = re.sub(r"<br\s*/?>", "\n", td_matches[3], flags=re.IGNORECASE)
+        modification = strip_tags(modification)
 
         rows.append({
             "version": version,
@@ -420,17 +432,17 @@ def build_revision_history_html(existing_html: str, author: str, change_lines=No
 
     rows_html = []
     for row in all_rows:
+        safe_modification = escape_html(row["modification"]).replace("\n", "<br/>")
         rows_html.append(
             "<tr>"
             f"<td>{escape_html(row['version'])}</td>"
             f"<td>{escape_html(row['date'])}</td>"
             f"<td>{escape_html(row['author'])}</td>"
-            f"<td>{row['modification']}</td>"
+            f"<td>{safe_modification}</td>"
             "</tr>"
         )
 
     table_html = (
-        f"{REVISION_START}"
         "<h1>Revision History</h1>"
         '<table border="1" style="border-collapse:collapse; width:100%;">'
         "<thead>"
@@ -445,7 +457,6 @@ def build_revision_history_html(existing_html: str, author: str, change_lines=No
         + "".join(rows_html) +
         "</tbody>"
         "</table>"
-        f"{REVISION_END}"
     )
 
     return table_html
