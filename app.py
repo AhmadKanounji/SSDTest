@@ -405,7 +405,7 @@ def build_revision_history_html(existing_html: str, author: str, change_lines=No
     today = datetime.now(ZoneInfo("Asia/Beirut")).strftime("%d/%m/%Y")
 
     if not change_lines:
-        modification_text = "Initial SSD generation"
+        modification_text = "SSD generated"
     else:
         modification_text = "<br/>".join(escape_html(line) for line in change_lines)
 
@@ -694,9 +694,13 @@ def generate_ssd(author: str):
 
     old_snapshot = extract_existing_snapshot(existing_html)
     new_snapshot = build_jira_snapshot(issues)
-    changes = detect_changes(old_snapshot, new_snapshot)
 
-    log(f"generate_ssd - detected changes count: {len(changes)}")
+    if not old_snapshot:
+        changes = None
+        log("generate_ssd - no previous snapshot found, using 'SSD generated'")
+    else:
+        changes = detect_changes(old_snapshot, new_snapshot)
+        log(f"generate_ssd - detected changes count: {len(changes)}")
 
     revision_html = build_revision_history_html(existing_html, author, changes)
     snapshot_html = build_snapshot_html(new_snapshot)
