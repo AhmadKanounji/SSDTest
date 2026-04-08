@@ -24,10 +24,8 @@ CONF_BASE = f"https://{ATLASSIAN_DOMAIN}/wiki"
 
 auth = HTTPBasicAuth(EMAIL, API_TOKEN)
 
-META_START = "SSD_META_START"
-META_END = "SSD_META_END"
-
 ATTACHMENT_CACHE = None
+REVISION_META_FILENAME = "ssd_revision_meta.json"
 
 
 def get_existing_confluence_attachments_cached():
@@ -35,6 +33,11 @@ def get_existing_confluence_attachments_cached():
     if ATTACHMENT_CACHE is None:
         ATTACHMENT_CACHE = get_existing_confluence_attachments()
     return ATTACHMENT_CACHE
+
+
+def reset_attachment_cache():
+    global ATTACHMENT_CACHE
+    ATTACHMENT_CACHE = None
 
 
 def log(message: str):
@@ -53,6 +56,7 @@ def jira_search(jql: str):
 
     r = requests.get(url, params=params, auth=auth)
     log(f"jira_search response status: {r.status_code}")
+    log(f"jira_search response body: {r.text[:1000]}")
     r.raise_for_status()
 
     issues = r.json()["issues"]
@@ -68,6 +72,7 @@ def get_confluence_page():
 
     r = requests.get(url, params=params, auth=auth)
     log(f"get_confluence_page response status: {r.status_code}")
+    log(f"get_confluence_page response body: {r.text[:1000]}")
     r.raise_for_status()
 
     page = r.json()
@@ -301,89 +306,6 @@ def format_version(version_num: float) -> str:
     return f"{version_num:.1f}"
 
 
-def build_meta_payload(revision_version: str, snapshot: dict) -> str:
-    payload = {
-        "revision_version": revision_version,
-        "snapshot": snapshot,
-    }
-    return json.dumps(payload, ensure_ascii=False, sort_keys=True)
-
-
-def extract_existing_meta(existing_html: str):
-    if not existing_html:
-        return None
-
-    pattern = (
-        r'<ac:plain-text-body><!\[CDATA\['
-        r'(.*?)'
-        r'\]\]></ac:plain-text-body>'
-    )
-
-    matches = re.findall(pattern, existing_html, flags=re.DOTALL | re.IGNORECASE)
-
-    for block in matches:
-        block = block.strip()
-
-        if META_START not in block or META_END not in block:
-            continue
-
-        start_idx = block.find(META_START) + len(META_START)
-        end_idx = block.find(META_END)
-
-        raw_json = block[start_idx:end_idx].strip()
-        if not raw_json:
-            continue
-
-        try:
-            return json.loads(raw_json)
-        except Exception as e:
-            log(f"extract_existing_meta failed on candidate block: {repr(e)}")
-
-    return None
-
-
-def build_meta_html(revision_version: str, snapshot: dict):
-    meta_json = build_meta_payload(revision_version, snapshot)
-
-    return (
-        "<h2>Internal Metadata</h2>"
-        '<ac:structured-macro ac:name="expand">'
-        '<ac:parameter ac:name="title">SSD Internal Metadata - Do Not Edit</ac:parameter>'
-        '<ac:plain-text-body><![CDATA['
-        f'{META_START}\n{meta_json}\n{META_END}'
-        ']]></ac:plain-text-body>'
-        '</ac:structured-macro>'
-    )
-
-
-def detect_changes(old_snapshot, new_snapshot):
-    changes = []
-
-    old_keys = set(old_snapshot.keys())
-    new_keys = set(new_snapshot.keys())
-
-    created_keys = sorted(new_keys - old_keys)
-    removed_keys = sorted(old_keys - new_keys)
-    common_keys = sorted(old_keys & new_keys)
-
-    for key in created_keys:
-        item = new_snapshot[key]
-        changes.append(f"{item['type']} {summarize_issue(item)} created")
-
-    for key in removed_keys:
-        item = old_snapshot[key]
-        changes.append(f"{item['type']} {summarize_issue(item)} removed")
-
-    for key in common_keys:
-        old_item = old_snapshot[key]
-        new_item = new_snapshot[key]
-
-        if old_item.get("signature") != new_item.get("signature"):
-            changes.append(f"{new_item['type']} {summarize_issue(new_item)} modified")
-
-    return changes
-
-
 def extract_existing_revision_rows(existing_html: str):
     if not existing_html:
         return []
@@ -471,19 +393,6 @@ def build_revision_history_html(existing_rows, author: str, new_version: str, ch
     )
 
 
-def has_png_attachment(issue):
-    attachments = issue["fields"].get("attachment", []) or []
-
-    for att in attachments:
-        filename = (att.get("filename") or "").lower()
-        mime = (att.get("mimeType") or "").lower()
-
-        if filename.endswith(".png") or mime == "image/png":
-            return True
-
-    return False
-
-
 def get_existing_confluence_attachments():
     log("get_existing_confluence_attachments started")
 
@@ -497,6 +406,7 @@ def get_existing_confluence_attachments():
 
         r = requests.get(url, params=params, auth=auth)
         log(f"get_existing_confluence_attachments page start={start}, status={r.status_code}")
+        log(f"get_existing_confluence_attachments body: {r.text[:1000]}")
         r.raise_for_status()
 
         data = r.json()
@@ -514,6 +424,85 @@ def get_existing_confluence_attachments():
 
     log(f"get_existing_confluence_attachments finished - total={len(attachments)}")
     return attachments
+
+
+def download_confluence_attachment_by_filename(filename: str):
+    attachments = get_existing_confluence_attachments_cached()
+    existing = attachments.get(filename)
+
+    if not existing:
+        log(f"download_confluence_attachment_by_filename - attachment not found: {filename}")
+        return None
+
+    download_link = existing.get("_links", {}).get("download")
+    if not download_link:
+        log(f"download_confluence_attachment_by_filename - no download link for: {filename}")
+        return None
+
+    if download_link.startswith("/"):
+        url = f"https://{ATLASSIAN_DOMAIN}{download_link}"
+    else:
+        url = download_link
+
+    log(f"download_confluence_attachment_by_filename started - {filename}")
+
+    r = requests.get(url, auth=auth)
+    log(f"download_confluence_attachment_by_filename response status for {filename}: {r.status_code}")
+    log(f"download_confluence_attachment_by_filename response body for {filename}: {r.text[:1000] if hasattr(r, 'text') else 'binary'}")
+    r.raise_for_status()
+
+    return r.content
+
+
+def load_existing_meta_from_attachment():
+    try:
+        content = download_confluence_attachment_by_filename(REVISION_META_FILENAME)
+        if not content:
+            return None
+
+        return json.loads(content.decode("utf-8"))
+    except Exception as e:
+        log(f"load_existing_meta_from_attachment failed: {repr(e)}")
+        return None
+
+
+def upload_attachment_to_confluence(filename, file_bytes, mime_type):
+    log(f"upload_attachment_to_confluence started - {filename}")
+
+    url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
+    params = {"status": "current"}
+
+    headers = {"X-Atlassian-Token": "nocheck"}
+    files = {
+        "file": (filename, file_bytes, mime_type)
+    }
+
+    r = requests.put(url, params=params, auth=auth, headers=headers, files=files)
+    log(f"upload_attachment_to_confluence response status for {filename}: {r.status_code}")
+    log(f"upload_attachment_to_confluence response body for {filename}: {r.text[:1000]}")
+    r.raise_for_status()
+
+    reset_attachment_cache()
+
+    log(f"upload_attachment_to_confluence finished - {filename}")
+    return r.json()
+
+
+def save_meta_to_attachment(revision_version: str, snapshot: dict):
+    payload = {
+        "revision_version": revision_version,
+        "snapshot": snapshot,
+    }
+
+    data = json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8")
+
+    upload_attachment_to_confluence(
+        filename=REVISION_META_FILENAME,
+        file_bytes=data,
+        mime_type="application/json",
+    )
+
+    log(f"save_meta_to_attachment finished - {REVISION_META_FILENAME}")
 
 
 def download_jira_attachment(attachment):
@@ -538,29 +527,6 @@ def download_jira_attachment(attachment):
         "mime_type": mime_type,
         "content": r.content,
     }
-
-
-def upload_attachment_to_confluence(filename, file_bytes, mime_type):
-    log(f"upload_attachment_to_confluence started - {filename}")
-
-    url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
-    params = {"status": "current"}
-
-    headers = {"X-Atlassian-Token": "nocheck"}
-    files = {
-        "file": (filename, file_bytes, mime_type)
-    }
-
-    r = requests.put(url, params=params, auth=auth, headers=headers, files=files)
-    log(f"upload_attachment_to_confluence response status for {filename}: {r.status_code}")
-    log(f"upload_attachment_to_confluence response body for {filename}: {r.text[:1000]}")
-    r.raise_for_status()
-
-    global ATTACHMENT_CACHE
-    ATTACHMENT_CACHE = None
-
-    log(f"upload_attachment_to_confluence finished - {filename}")
-    return r.json()
 
 
 def ensure_attachment_on_confluence(attachment):
@@ -612,6 +578,19 @@ def attachment_images_to_html(attachments):
         )
 
     return "\n".join(html_parts)
+
+
+def has_png_attachment(issue):
+    attachments = issue["fields"].get("attachment", []) or []
+
+    for att in attachments:
+        filename = (att.get("filename") or "").lower()
+        mime = (att.get("mimeType") or "").lower()
+
+        if filename.endswith(".png") or mime == "image/png":
+            return True
+
+    return False
 
 
 def build_requirement_html(req):
@@ -678,9 +657,36 @@ def build_html(epics, reqs_by_epic):
     return "\n".join(html_parts)
 
 
+def detect_changes(old_snapshot, new_snapshot):
+    changes = []
+
+    old_keys = set(old_snapshot.keys())
+    new_keys = set(new_snapshot.keys())
+
+    created_keys = sorted(new_keys - old_keys)
+    removed_keys = sorted(old_keys - new_keys)
+    common_keys = sorted(old_keys & new_keys)
+
+    for key in created_keys:
+        item = new_snapshot[key]
+        changes.append(f"{item['type']} {summarize_issue(item)} created")
+
+    for key in removed_keys:
+        item = old_snapshot[key]
+        changes.append(f"{item['type']} {summarize_issue(item)} removed")
+
+    for key in common_keys:
+        old_item = old_snapshot[key]
+        new_item = new_snapshot[key]
+
+        if old_item.get("signature") != new_item.get("signature"):
+            changes.append(f"{new_item['type']} {summarize_issue(new_item)} modified")
+
+    return changes
+
+
 def generate_ssd(author: str):
-    global ATTACHMENT_CACHE
-    ATTACHMENT_CACHE = None
+    reset_attachment_cache()
 
     log("generate_ssd started")
 
@@ -707,7 +713,7 @@ def generate_ssd(author: str):
     existing_html = page.get("body", {}).get("storage", {}).get("value", "")
 
     existing_rows = extract_existing_revision_rows(existing_html)
-    existing_meta = extract_existing_meta(existing_html)
+    existing_meta = load_existing_meta_from_attachment()
 
     # Version source of truth = visible revision table
     if existing_rows:
@@ -715,7 +721,7 @@ def generate_ssd(author: str):
     else:
         current_version_str = "0.0"
 
-    # Snapshot source of truth = metadata block
+    # Snapshot source of truth = json attachment
     if existing_meta and isinstance(existing_meta, dict):
         old_snapshot = existing_meta.get("snapshot", {}) or {}
     else:
@@ -741,16 +747,16 @@ def generate_ssd(author: str):
         change_lines=change_lines,
     )
 
-    meta_html = build_meta_html(new_revision_version, new_snapshot)
     content_html = build_html(epics, reqs_by_epic)
-
-    full_html = revision_html + meta_html + content_html
+    full_html = revision_html + content_html
 
     updated = update_confluence_page(
         page["title"],
         full_html,
         page["version"]["number"] + 1,
     )
+
+    save_meta_to_attachment(new_revision_version, new_snapshot)
 
     log(f"generate_ssd finished - revision version {new_revision_version}")
     return updated
@@ -771,6 +777,7 @@ def debug_config():
         "project_key": PROJECT_KEY,
         "page_id": CONFLUENCE_PAGE_ID,
         "token_length": len(API_TOKEN),
+        "revision_meta_filename": REVISION_META_FILENAME,
     }, 200
 
 
