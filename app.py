@@ -479,9 +479,9 @@ def load_existing_meta_from_attachment():
         return None
 
     if download_link.startswith("/"):
-    url = f"{CONF_BASE}{download_link}"
-else:
-    url = download_link
+        url = f"{CONF_BASE}{download_link}"
+    else:
+        url = download_link
 
     r = requests.get(url, auth=auth)
     log(f"Download status: {r.status_code}")
