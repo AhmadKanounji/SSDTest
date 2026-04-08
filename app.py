@@ -440,14 +440,16 @@ def download_confluence_attachment_by_filename(filename: str):
         return None
 
     if download_link.startswith("/"):
-        url = f"https://{ATLASSIAN_DOMAIN}{download_link}"
+        url = f"{CONF_BASE}{download_link}"
     else:
         url = download_link
 
     log(f"download_confluence_attachment_by_filename started - {filename}")
+    log(f"Resolved attachment download URL: {url}")
 
     r = requests.get(url, auth=auth)
     log(f"download_confluence_attachment_by_filename response status for {filename}: {r.status_code}")
+    log(f"download_confluence_attachment_by_filename response body for {filename}: {r.text[:1000]}")
     r.raise_for_status()
 
     return r.content
@@ -477,9 +479,9 @@ def load_existing_meta_from_attachment():
         return None
 
     if download_link.startswith("/"):
-        url = f"https://{ATLASSIAN_DOMAIN}{download_link}"
-    else:
-        url = download_link
+    url = f"{CONF_BASE}{download_link}"
+else:
+    url = download_link
 
     r = requests.get(url, auth=auth)
     log(f"Download status: {r.status_code}")
