@@ -506,11 +506,15 @@ def upload_attachment_to_confluence(filename, file_bytes, mime_type):
     files = {
         "file": (filename, file_bytes, mime_type)
     }
+    data = {
+        "minorEdit": "true",
+        "comment": "Updated by SSD automation"
+    }
 
-    r = requests.post(url, auth=auth, headers=headers, files=files)
+    r = requests.put(url, auth=auth, headers=headers, files=files, data=data)
 
     log(f"upload_attachment response: {r.status_code}")
-    log(f"upload_attachment body: {r.text[:500]}")
+    log(f"upload_attachment body: {r.text[:1000]}")
 
     r.raise_for_status()
 
