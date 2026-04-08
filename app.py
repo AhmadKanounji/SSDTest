@@ -94,6 +94,7 @@ def update_confluence_page(title: str, html_value: str, version_number: int):
 
     r = requests.put(url, json=payload, auth=auth)
     log(f"update_confluence_page response status: {r.status_code}")
+    log(f"update_confluence_page response body: {r.text[:1000]}")
     r.raise_for_status()
 
     updated = r.json()
@@ -388,7 +389,7 @@ def extract_existing_revision_rows(existing_html: str):
         return []
 
     match = re.search(
-        r"<h1>\s*Revision History\s*</h1>\s*(<table.*?</table>)",
+        r"<h1>\s*Revision History\s*</h1>\s*(<table\b.*?</table>)",
         existing_html,
         flags=re.DOTALL | re.IGNORECASE
     )
@@ -542,24 +543,21 @@ def download_jira_attachment(attachment):
 def upload_attachment_to_confluence(filename, file_bytes, mime_type):
     log(f"upload_attachment_to_confluence started - {filename}")
 
-    existing = get_existing_confluence_attachments_cached().get(filename)
+    url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
+    params = {"status": "current"}
 
-    if existing:
-        attachment_id = existing["id"]
-        url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment/{attachment_id}/data"
-        log(f"upload_attachment_to_confluence updating existing attachment - {filename}, id={attachment_id}")
-    else:
-        url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
-        log(f"upload_attachment_to_confluence creating new attachment - {filename}")
-
-    headers = {"X-Atlassian-Token": "no-check"}
+    headers = {"X-Atlassian-Token": "nocheck"}
     files = {
         "file": (filename, file_bytes, mime_type)
     }
 
-    r = requests.post(url, auth=auth, headers=headers, files=files)
+    r = requests.put(url, params=params, auth=auth, headers=headers, files=files)
     log(f"upload_attachment_to_confluence response status for {filename}: {r.status_code}")
+    log(f"upload_attachment_to_confluence response body for {filename}: {r.text[:1000]}")
     r.raise_for_status()
+
+    global ATTACHMENT_CACHE
+    ATTACHMENT_CACHE = None
 
     log(f"upload_attachment_to_confluence finished - {filename}")
     return r.json()
@@ -711,11 +709,16 @@ def generate_ssd(author: str):
     existing_rows = extract_existing_revision_rows(existing_html)
     existing_meta = extract_existing_meta(existing_html)
 
+    # Version source of truth = visible revision table
+    if existing_rows:
+        current_version_str = existing_rows[0].get("version", "0.0")
+    else:
+        current_version_str = "0.0"
+
+    # Snapshot source of truth = metadata block
     if existing_meta and isinstance(existing_meta, dict):
-        old_revision_version = existing_meta.get("revision_version", "0.0")
         old_snapshot = existing_meta.get("snapshot", {}) or {}
     else:
-        old_revision_version = "0.0"
         old_snapshot = {}
 
     new_snapshot = build_jira_snapshot(issues)
@@ -725,7 +728,7 @@ def generate_ssd(author: str):
     else:
         change_lines = detect_changes(old_snapshot, new_snapshot)
 
-    next_version_num = round(parse_version_string(old_revision_version) + 0.1, 1)
+    next_version_num = round(parse_version_string(current_version_str) + 0.1, 1)
     if next_version_num <= 0:
         next_version_num = 0.1
 
