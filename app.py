@@ -448,21 +448,50 @@ def download_confluence_attachment_by_filename(filename: str):
 
     r = requests.get(url, auth=auth)
     log(f"download_confluence_attachment_by_filename response status for {filename}: {r.status_code}")
-    log(f"download_confluence_attachment_by_filename response body for {filename}: {r.text[:1000] if hasattr(r, 'text') else 'binary'}")
     r.raise_for_status()
 
     return r.content
 
 
 def load_existing_meta_from_attachment():
-    try:
-        content = download_confluence_attachment_by_filename(REVISION_META_FILENAME)
-        if not content:
-            return None
+    filename = REVISION_META_FILENAME
 
-        return json.loads(content.decode("utf-8"))
+    log("=== LOADING SNAPSHOT FROM ATTACHMENT ===")
+
+    attachments = get_existing_confluence_attachments_cached()
+    log(f"Available attachments: {list(attachments.keys())}")
+
+    existing = attachments.get(filename)
+
+    if not existing:
+        log("❌ Snapshot attachment NOT FOUND")
+        return None
+
+    log(f"✅ Snapshot attachment FOUND: {filename}")
+
+    download_link = existing.get("_links", {}).get("download")
+    log(f"Download link: {download_link}")
+
+    if not download_link:
+        log("❌ Snapshot attachment has no download link")
+        return None
+
+    if download_link.startswith("/"):
+        url = f"https://{ATLASSIAN_DOMAIN}{download_link}"
+    else:
+        url = download_link
+
+    r = requests.get(url, auth=auth)
+    log(f"Download status: {r.status_code}")
+    log(f"Download body preview: {r.text[:1000] if hasattr(r, 'text') else 'binary'}")
+    r.raise_for_status()
+
+    try:
+        data = json.loads(r.content.decode("utf-8"))
+        log("✅ Snapshot loaded successfully")
+        return data
     except Exception as e:
-        log(f"load_existing_meta_from_attachment failed: {repr(e)}")
+        log(f"❌ Failed to parse snapshot: {repr(e)}")
         return None
 
 
@@ -470,21 +499,22 @@ def upload_attachment_to_confluence(filename, file_bytes, mime_type):
     log(f"upload_attachment_to_confluence started - {filename}")
 
     url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
-    params = {"status": "current"}
-
     headers = {"X-Atlassian-Token": "nocheck"}
+
     files = {
         "file": (filename, file_bytes, mime_type)
     }
 
-    r = requests.put(url, params=params, auth=auth, headers=headers, files=files)
-    log(f"upload_attachment_to_confluence response status for {filename}: {r.status_code}")
-    log(f"upload_attachment_to_confluence response body for {filename}: {r.text[:1000]}")
+    r = requests.post(url, auth=auth, headers=headers, files=files)
+
+    log(f"upload_attachment response: {r.status_code}")
+    log(f"upload_attachment body: {r.text[:500]}")
+
     r.raise_for_status()
 
     reset_attachment_cache()
 
-    log(f"upload_attachment_to_confluence finished - {filename}")
+    log("upload_attachment_to_confluence finished")
     return r.json()
 
 
@@ -721,7 +751,7 @@ def generate_ssd(author: str):
     else:
         current_version_str = "0.0"
 
-    # Snapshot source of truth = json attachment
+    # Snapshot source of truth = JSON attachment
     if existing_meta and isinstance(existing_meta, dict):
         old_snapshot = existing_meta.get("snapshot", {}) or {}
     else:
@@ -731,8 +761,12 @@ def generate_ssd(author: str):
 
     if not old_snapshot:
         change_lines = None
+        log("No previous snapshot found -> modification text will be 'SSD generated'")
     else:
         change_lines = detect_changes(old_snapshot, new_snapshot)
+        log(f"Detected {len(change_lines)} changes")
+        for line in change_lines:
+            log(f"CHANGE: {line}")
 
     next_version_num = round(parse_version_string(current_version_str) + 0.1, 1)
     if next_version_num <= 0:
