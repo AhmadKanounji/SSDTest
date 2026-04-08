@@ -2,7 +2,6 @@ import os
 import re
 import json
 import html as html_lib
-import hashlib
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -251,31 +250,6 @@ def summarize_issue(snapshot_item):
     return f"{key} - {summary}" if key else summary
 
 
-def issue_content_signature(issue):
-    fields = issue["fields"]
-    summary = normalize_text(fields.get("summary", ""))
-    description = normalize_text(adf_to_text(fields.get("description")))
-    parent_key = (fields.get("parent") or {}).get("key", "")
-
-    attachment_names = sorted(
-        (att.get("filename") or "").strip().lower()
-        for att in (fields.get("attachment") or [])
-    )
-
-    raw = json.dumps(
-        {
-            "summary": summary,
-            "description": description,
-            "parent_key": parent_key,
-            "attachments": attachment_names,
-        },
-        ensure_ascii=False,
-        sort_keys=True,
-    )
-
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
 def build_jira_snapshot(issues):
     snapshot = {}
 
@@ -288,8 +262,12 @@ def build_jira_snapshot(issues):
             "key": key,
             "type": issue_type,
             "summary": fields.get("summary", ""),
+            "description": adf_to_text(fields.get("description")),
             "parent_key": (fields.get("parent") or {}).get("key"),
-            "signature": issue_content_signature(issue),
+            "attachments": sorted(
+                (att.get("filename") or "").strip().lower()
+                for att in (fields.get("attachment") or [])
+            ),
         }
 
     return snapshot
@@ -349,6 +327,25 @@ def extract_existing_revision_rows(existing_html: str):
 def build_revision_history_html(existing_rows, author: str, new_version: str, change_lines=None):
     today = datetime.now(ZoneInfo("Asia/Beirut")).strftime("%d/%m/%Y")
 
+    cleaned_rows = []
+    seen_zero_one = False
+
+    for row in existing_rows:
+        version = row.get("version", "")
+        modification = row.get("modification", "")
+
+        if version == "0.1":
+            if seen_zero_one:
+                continue
+            seen_zero_one = True
+            cleaned_rows.append(row)
+            continue
+
+        if modification == "SSD generated":
+            continue
+
+        cleaned_rows.append(row)
+
     if not change_lines:
         modification_text = "SSD generated"
     else:
@@ -361,7 +358,7 @@ def build_revision_history_html(existing_rows, author: str, new_version: str, ch
         "modification": modification_text,
     }
 
-    all_rows = [new_row] + existing_rows
+    all_rows = [new_row] + cleaned_rows
 
     rows_html = []
     for row in all_rows:
@@ -515,7 +512,6 @@ def upload_attachment_to_confluence(filename, file_bytes, mime_type):
 
     log(f"upload_attachment response: {r.status_code}")
     log(f"upload_attachment body: {r.text[:1000]}")
-
     r.raise_for_status()
 
     reset_attachment_cache()
@@ -699,24 +695,35 @@ def detect_changes(old_snapshot, new_snapshot):
     old_keys = set(old_snapshot.keys())
     new_keys = set(new_snapshot.keys())
 
-    created_keys = sorted(new_keys - old_keys)
-    removed_keys = sorted(old_keys - new_keys)
-    common_keys = sorted(old_keys & new_keys)
-
-    for key in created_keys:
+    for key in sorted(new_keys - old_keys):
         item = new_snapshot[key]
-        changes.append(f"{item['type']} {summarize_issue(item)} created")
+        changes.append(f"🟢 {item['type']} {summarize_issue(item)} created")
 
-    for key in removed_keys:
+    for key in sorted(old_keys - new_keys):
         item = old_snapshot[key]
-        changes.append(f"{item['type']} {summarize_issue(item)} removed")
+        changes.append(f"🔴 {item['type']} {summarize_issue(item)} removed")
 
-    for key in common_keys:
-        old_item = old_snapshot[key]
-        new_item = new_snapshot[key]
+    for key in sorted(old_keys & new_keys):
+        old = old_snapshot[key]
+        new = new_snapshot[key]
 
-        if old_item.get("signature") != new_item.get("signature"):
-            changes.append(f"{new_item['type']} {summarize_issue(new_item)} modified")
+        diffs = []
+
+        if normalize_text(old.get("summary")) != normalize_text(new.get("summary")):
+            diffs.append("summary updated")
+
+        if normalize_text(old.get("description")) != normalize_text(new.get("description")):
+            diffs.append("description updated")
+
+        if old.get("parent_key") != new.get("parent_key"):
+            diffs.append("parent changed")
+
+        if set(old.get("attachments", [])) != set(new.get("attachments", [])):
+            diffs.append("attachments changed")
+
+        if diffs:
+            formatted = " • ".join(diffs)
+            changes.append(f"🟡 {new['type']} {summarize_issue(new)} → {formatted}")
 
     return changes
 
@@ -751,13 +758,11 @@ def generate_ssd(author: str):
     existing_rows = extract_existing_revision_rows(existing_html)
     existing_meta = load_existing_meta_from_attachment()
 
-    # Version source of truth = visible revision table
     if existing_rows:
         current_version_str = existing_rows[0].get("version", "0.0")
     else:
         current_version_str = "0.0"
 
-    # Snapshot source of truth = JSON attachment
     if existing_meta and isinstance(existing_meta, dict):
         old_snapshot = existing_meta.get("snapshot", {}) or {}
     else:
