@@ -646,20 +646,66 @@ def build_requirement_html(req):
     return "\n".join(html_parts)
 
 
-def build_html(epics, reqs_by_epic):
+def extract_use_case_sort_key(summary: str, fallback_key: str = ""):
+    """
+    Sorts use cases by the number found in the summary.
+    Handles examples like:
+    - UC1
+    - UC1.2
+    - UC 3.5
+    - 3.5 - Title
+    """
+    text = (summary or "").strip()
+
+    patterns = [
+        r"\bUC\s*([0-9]+(?:\.[0-9]+)*)\b",
+        r"\bUse\s*Case\s*([0-9]+(?:\.[0-9]+)*)\b",
+        r"^\s*([0-9]+(?:\.[0-9]+)*)\b",
+    ]
+
+    value = None
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            value = match.group(1)
+            break
+
+    if value is None:
+        return ([999999], text.lower(), fallback_key)
+
+    try:
+        numeric_parts = [int(part) for part in value.split(".")]
+        return (numeric_parts, text.lower(), fallback_key)
+    except Exception:
+        return ([999999], text.lower(), fallback_key)
+
+
+def extract_requirement_sort_key(req):
+    summary = req["fields"].get("summary", "") or ""
+    key = req.get("key", "")
+    return (summary.lower(), key)
+
+
+def build_html(use_cases, reqs_by_uc):
     html_parts = []
 
-    epics = sorted(epics, key=lambda x: int(x["key"].split("-")[1]))
+    use_cases = sorted(
+        use_cases,
+        key=lambda x: extract_use_case_sort_key(
+            x["fields"].get("summary", ""),
+            x.get("key", "")
+        )
+    )
 
-    for epic in epics:
-        epic_key = epic["key"]
-        ef = epic["fields"]
-        requirements = reqs_by_epic.get(epic_key, [])
-        requirements = sorted(requirements, key=lambda x: int(x["key"].split("-")[1]))
+    for use_case in use_cases:
+        uc_key = use_case["key"]
+        uf = use_case["fields"]
+        requirements = reqs_by_uc.get(uc_key, [])
+        requirements = sorted(requirements, key=extract_requirement_sort_key)
 
-        log(f"build_html - processing epic {epic_key} with {len(requirements)} requirements")
+        log(f"build_html - processing use case {uc_key} with {len(requirements)} requirements")
 
-        html_parts.append(f"<h1>{escape_html(ef.get('summary', ''))}</h1>")
+        html_parts.append(f"<h1>{escape_html(uf.get('summary', ''))}</h1>")
 
         png_req = None
         other_reqs = []
@@ -671,13 +717,13 @@ def build_html(epics, reqs_by_epic):
                 other_reqs.append(req)
 
         if png_req:
-            log(f"build_html - epic {epic_key} has diagram requirement {png_req.get('key', 'UNKNOWN')}")
+            log(f"build_html - use case {uc_key} has diagram requirement {png_req.get('key', 'UNKNOWN')}")
             html_parts.append(build_requirement_html(png_req))
 
-        epic_description_html = adf_to_html(ef.get("description"))
-        if epic_description_html.strip():
+        use_case_description_html = adf_to_html(uf.get("description"))
+        if use_case_description_html.strip():
             html_parts.append("<h2>Description</h2>")
-            html_parts.append(epic_description_html)
+            html_parts.append(use_case_description_html)
 
         if other_reqs:
             html_parts.append("<h2>Requirements</h2>")
@@ -733,24 +779,24 @@ def generate_ssd(author: str):
 
     log("generate_ssd started")
 
-    jql = f'project = {PROJECT_KEY} AND issuetype in (Epic, Requirement)'
+    jql = f'project = {PROJECT_KEY} AND issuetype in ("Use Case", Requirement)'
     issues = jira_search(jql)
 
-    epics = []
-    reqs_by_epic = {}
+    use_cases = []
+    reqs_by_uc = {}
 
     for issue in issues:
         issue_type = issue["fields"]["issuetype"]["name"]
         fields = issue["fields"]
 
-        if issue_type == "Epic":
-            epics.append(issue)
+        if issue_type == "Use Case":
+            use_cases.append(issue)
 
         elif issue_type == "Requirement":
             parent = fields.get("parent")
             if parent and parent.get("key"):
                 parent_key = parent["key"]
-                reqs_by_epic.setdefault(parent_key, []).append(issue)
+                reqs_by_uc.setdefault(parent_key, []).append(issue)
 
     page = get_confluence_page()
     existing_html = page.get("body", {}).get("storage", {}).get("value", "")
@@ -792,7 +838,7 @@ def generate_ssd(author: str):
         change_lines=change_lines,
     )
 
-    content_html = build_html(epics, reqs_by_epic)
+    content_html = build_html(use_cases, reqs_by_uc)
     full_html = revision_html + content_html
 
     updated = update_confluence_page(
