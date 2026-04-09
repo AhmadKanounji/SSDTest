@@ -648,14 +648,17 @@ def build_requirement_html(req):
 
 def extract_use_case_sort_key(summary: str, fallback_key: str = ""):
     """
-    Sorts use cases by the number found in the summary.
-    Handles examples like:
-    - UC1
-    - UC1.2
-    - UC 3.5
-    - 3.5 - Title
+    Sorting rules:
+    1. 'Exigences Générales' always first
+    2. Then numbered use cases: UC1, UC1.2, UC3.5, etc.
+    3. Then any other non-numbered items
     """
     text = (summary or "").strip()
+    normalized = text.lower()
+
+    # Always force "Exigences Générales" to the top
+    if normalized == "exigences générales" or normalized == "exigences generales":
+        return (0, [], normalized, fallback_key)
 
     patterns = [
         r"\bUC\s*([0-9]+(?:\.[0-9]+)*)\b",
@@ -671,13 +674,13 @@ def extract_use_case_sort_key(summary: str, fallback_key: str = ""):
             break
 
     if value is None:
-        return ([999999], text.lower(), fallback_key)
+        return (2, [999999], normalized, fallback_key)
 
     try:
         numeric_parts = [int(part) for part in value.split(".")]
-        return (numeric_parts, text.lower(), fallback_key)
+        return (1, numeric_parts, normalized, fallback_key)
     except Exception:
-        return ([999999], text.lower(), fallback_key)
+        return (2, [999999], normalized, fallback_key)
 
 
 def extract_requirement_sort_key(req):
