@@ -813,13 +813,13 @@ def build_html(use_cases, reqs_by_uc):
         normalized = title.strip().lower()
 
         if normalized in ["exigences générales", "exigences generales"]:
-        html_parts.append(f"<h1>2. {escape_html(title)}</h1>")
-        description_title = "2.1 Description"
-        requirements_title = "2.2 Requirements"
+            html_parts.append(f"<h1>2. {escape_html(title)}</h1>")
+            description_title = "2.1 Description"
+            requirements_title = "2.2 Requirements"
         else:
-        html_parts.append(f"<h1>{escape_html(title)}</h1>")
-        description_title = "Description"
-        requirements_title = "Requirements"
+            html_parts.append(f"<h1>{escape_html(title)}</h1>")
+            description_title = "Description"
+            requirements_title = "Requirements"
 
         png_req = None
         other_reqs = []
