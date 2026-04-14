@@ -762,11 +762,15 @@ def detect_changes(old_snapshot, new_snapshot):
 
     for key in sorted(new_keys - old_keys):
         item = new_snapshot[key]
-        changes.append(f"🟢 {item['type']} {summarize_issue(item)} created")
+        changes.append(
+            f"Creation of {item['type']} {summarize_issue(item)}"
+        )
 
     for key in sorted(old_keys - new_keys):
         item = old_snapshot[key]
-        changes.append(f"🔴 {item['type']} {summarize_issue(item)} removed")
+        changes.append(
+            f"Removal of {item['type']} {summarize_issue(item)}"
+        )
 
     for key in sorted(old_keys & new_keys):
         old = old_snapshot[key]
@@ -775,20 +779,22 @@ def detect_changes(old_snapshot, new_snapshot):
         diffs = []
 
         if normalize_text(old.get("summary")) != normalize_text(new.get("summary")):
-            diffs.append("summary updated")
+            diffs.append("summary")
 
         if normalize_text(old.get("description")) != normalize_text(new.get("description")):
-            diffs.append("description updated")
+            diffs.append("description")
 
         if old.get("parent_key") != new.get("parent_key"):
-            diffs.append("parent changed")
+            diffs.append("parent linkage")
 
         if set(old.get("attachments", [])) != set(new.get("attachments", [])):
-            diffs.append("attachments changed")
+            diffs.append("attachments")
 
         if diffs:
-            formatted = " • ".join(diffs)
-            changes.append(f"🟡 {new['type']} {summarize_issue(new)} → {formatted}")
+            formatted = ", ".join(diffs)
+            changes.append(
+                f"Update of {new['type']} {summarize_issue(new)}: {formatted}"
+            )
 
     return changes
 
