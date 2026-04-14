@@ -230,9 +230,25 @@ def escape_html(text: str) -> str:
     )
 
 
-def clean_req(summary):
-    m = re.match(r"\[REQ\]\[([^\]]+)\]\s*-\s*(.*)", summary or "")
-    return f"{m.group(1)} - {m.group(2)}" if m else (summary or "")
+def clean_req(summary: str) -> str:
+    """
+    Converts requirement summaries such as:
+    [EXI][FON][CONSOLE] - Supervision et Monitoring
+    [EXI][FON] - Accès public au portail « Espace Citoyen »
+    [REQ][EG-CBE-223] - Scan 2D Barcode
+
+    Into:
+    Supervision et Monitoring
+    Accès public au portail « Espace Citoyen »
+    Scan 2D Barcode
+    """
+    summary = (summary or "").strip()
+
+    # Remove one or more leading [....] groups
+    cleaned = re.sub(r"^(?:\[[^\]]+\])+\s*-\s*", "", summary).strip()
+
+    # Fallback if format is unexpected
+    return cleaned or summary
 
 
 def strip_tags(text: str) -> str:
@@ -629,13 +645,14 @@ def build_requirement_html(req):
     rf = req["fields"]
     req_key = req.get("key", "UNKNOWN")
     req_title = clean_req(rf.get("summary", ""))
+    full_title = f"{req_key} - {req_title}"
 
     log(f"build_requirement_html - processing requirement {req_key} - {req_title}")
 
     req_description = adf_to_text(rf.get("description"))
     req_images_html = attachment_images_to_html(rf.get("attachment", []))
 
-    html_parts = [f"<h3>{escape_html(req_title)}</h3>"]
+    html_parts = [f"<h3>{escape_html(full_title)}</h3>"]
 
     if req_description.strip():
         html_parts.append(f"<p>{escape_html(req_description).replace(chr(10), '<br/>')}</p>")
@@ -656,7 +673,6 @@ def extract_use_case_sort_key(summary: str, fallback_key: str = ""):
     text = (summary or "").strip()
     normalized = text.lower()
 
-    # Always force "Exigences Générales" to the top
     if normalized == "exigences générales" or normalized == "exigences generales":
         return (0, [], normalized, fallback_key)
 
