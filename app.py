@@ -809,7 +809,17 @@ def build_html(use_cases, reqs_by_uc):
 
         log(f"build_html - processing use case {uc_key} with {len(requirements)} requirements")
 
-        html_parts.append(f"<h1>{escape_html(uf.get('summary', ''))}</h1>")
+        title = uf.get("summary", "")
+        normalized = title.strip().lower()
+
+        if normalized in ["exigences générales", "exigences generales"]:
+        html_parts.append(f"<h1>2. {escape_html(title)}</h1>")
+        description_title = "2.1 Description"
+        requirements_title = "2.2 Requirements"
+        else:
+        html_parts.append(f"<h1>{escape_html(title)}</h1>")
+        description_title = "Description"
+        requirements_title = "Requirements"
 
         png_req = None
         other_reqs = []
@@ -826,11 +836,11 @@ def build_html(use_cases, reqs_by_uc):
 
         use_case_description_html = adf_to_html(uf.get("description"))
         if use_case_description_html.strip():
-            html_parts.append("<h2>Description</h2>")
+            html_parts.append(f"<h2>{description_title}</h2>")
             html_parts.append(use_case_description_html)
 
         if other_reqs:
-            html_parts.append("<h2>Requirements</h2>")
+            html_parts.append(f"<h2>{requirements_title}</h2>")
             for req in other_reqs:
                 html_parts.append(build_requirement_html(req))
 
