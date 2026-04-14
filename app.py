@@ -649,13 +649,13 @@ def build_requirement_html(req):
 
     log(f"build_requirement_html - processing requirement {req_key} - {req_title}")
 
-    req_description = adf_to_text(rf.get("description"))
+    req_description_html = adf_to_html(rf.get("description"))
     req_images_html = attachment_images_to_html(rf.get("attachment", []))
 
     html_parts = [f"<h3>{escape_html(full_title)}</h3>"]
 
-    if req_description.strip():
-        html_parts.append(f"<p>{escape_html(req_description).replace(chr(10), '<br/>')}</p>")
+    if req_description_html.strip():
+        html_parts.append(req_description_html)
 
     if req_images_html:
         html_parts.append(req_images_html)
