@@ -688,7 +688,7 @@ def build_introduction_html():
     return """
     <h1>1. Introduction</h1>
 
-    <h2>Introduction</h2>
+    <h2>1.1 Introduction</h2>
 
     <p>
         This document outlines the database model for a Digital ID solution designed to securely
@@ -704,7 +704,7 @@ def build_introduction_html():
         experience, enhance security, and support scalability as user demands grow.
     </p>
 
-    <h2>Purpose of the document</h2>
+    <h2>1.2 Purpose of the document</h2>
 
     <p>
         The purpose of this document is to outline the database model solution for Digital ID.
@@ -727,7 +727,7 @@ def build_introduction_html():
         needs of the Digital ID project.
     </p>
 
-    <h2>Reference Document</h2>
+    <h2>1.3 Reference Document</h2>
 
     <p>
         This section presents all reference documents used to build this document.
