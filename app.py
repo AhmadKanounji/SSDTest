@@ -684,6 +684,74 @@ def build_document_header_html():
     </div>
     <hr/>
     """
+def build_introduction_html():
+    return """
+    <h1>1. Introduction</h1>
+
+    <h2>Introduction</h2>
+
+    <p>
+        This document outlines the database model for a Digital ID solution designed to securely
+        store and manage user identity information. The primary purpose of this database is to
+        facilitate the verification and authentication of individual identities while ensuring
+        compliance with relevant regulations.
+    </p>
+
+    <p>
+        Through a structured approach, this database model will define the necessary entities,
+        relationships, and data constraints needed to create a robust and efficient system.
+        By leveraging this model, the Digital ID solution aims to provide a seamless user
+        experience, enhance security, and support scalability as user demands grow.
+    </p>
+
+    <h2>Purpose of the document</h2>
+
+    <p>
+        The purpose of this document is to outline the database model solution for Digital ID.
+        This document serves as a comprehensive guide that details the design, structure,
+        and implementation of the database system to support the functionalities required by
+        Digital ID.
+    </p>
+
+    <p>
+        The scope of this database model encompasses the identification of entities and their
+        relationships, normalization of data to reduce redundancy, and the establishment of a
+        robust schema that ensures data integrity and optimal performance.
+    </p>
+
+    <p>
+        Throughout this document, we will provide insights into the requirements that guided the
+        design process, along with detailed tables that reflect the database structure. By adhering
+        to best practices in database design, this document aims to lay the groundwork for a
+        reliable, scalable, and maintainable database system that meets the current and future
+        needs of the Digital ID project.
+    </p>
+
+    <h2>Reference Document</h2>
+
+    <p>
+        This section presents all reference documents used to build this document.
+    </p>
+
+    <table style="border-collapse:collapse; width:100%; font-size:12px;">
+        <thead>
+            <tr>
+                <th style="border:1px solid #000; padding:6px;">Id</th>
+                <th style="border:1px solid #000; padding:6px;">Document Name</th>
+                <th style="border:1px solid #000; padding:6px;">Release</th>
+                <th style="border:1px solid #000; padding:6px;">Date</th>
+                <th style="border:1px solid #000; padding:6px;">Reference</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td></tr>
+            <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td></tr>
+            <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td></tr>
+        </tbody>
+    </table>
+
+    <hr/>
+    """
 
 
 def extract_use_case_sort_key(summary: str, fallback_key: str = ""):
@@ -875,7 +943,14 @@ def generate_ssd(author: str):
         change_lines=change_lines,
     )
     content_html = build_html(use_cases, reqs_by_uc)
-    full_html = document_header_html + revision_html + content_html
+    introduction_html = build_introduction_html()
+
+    full_html = (
+    document_header_html +
+    revision_html +
+    introduction_html +
+    content_html
+    )
 
     updated = update_confluence_page(
         page["title"],
