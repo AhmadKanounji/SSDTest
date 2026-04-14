@@ -231,23 +231,8 @@ def escape_html(text: str) -> str:
 
 
 def clean_req(summary: str) -> str:
-    """
-    Converts requirement summaries such as:
-    [EXI][FON][CONSOLE] - Supervision et Monitoring
-    [EXI][FON] - Accès public au portail « Espace Citoyen »
-    [REQ][EG-CBE-223] - Scan 2D Barcode
-
-    Into:
-    Supervision et Monitoring
-    Accès public au portail « Espace Citoyen »
-    Scan 2D Barcode
-    """
     summary = (summary or "").strip()
-
-    # Remove one or more leading [....] groups
     cleaned = re.sub(r"^(?:\[[^\]]+\])+\s*-\s*", "", summary).strip()
-
-    # Fallback if format is unexpected
     return cleaned or summary
 
 
@@ -357,13 +342,13 @@ def build_revision_history_html(existing_rows, author: str, new_version: str, ch
             cleaned_rows.append(row)
             continue
 
-        if modification == "SSD generated":
+        if modification == "Initial generation of the SSD":
             continue
 
         cleaned_rows.append(row)
 
     if not change_lines:
-        modification_text = "SSD generated"
+        modification_text = "Initial generation of the SSD"
     else:
         modification_text = "\n".join(change_lines)
 
@@ -663,13 +648,45 @@ def build_requirement_html(req):
     return "\n".join(html_parts)
 
 
+def build_document_header_html():
+    return """
+    <div style="text-align:center; margin-bottom:30px;">
+        <h1 style="color:#163A70; margin-bottom:12px;">Industrial Property Rights</h1>
+
+        <p style="font-size:12px; max-width:900px; margin:0 auto 24px auto; line-height:1.5;">
+            The information in this document is iDAKTO France Proprietary Information and is Confidential.
+            It is the property of iDAKTO Identity &amp; Security France and shall not be used, disclosed to others,
+            or reproduced without the express written consent of iDAKTO France. The information contained in this
+            document may also be controlled by export control laws and regulations.
+            This constraint applies to all pages of this document.
+        </p>
+
+        <h1 style="color:#163A70; margin-bottom:16px;">Distribution List</h1>
+
+        <table style="border-collapse:collapse; margin:0 auto; width:420px; font-size:12px;">
+            <thead>
+                <tr>
+                    <th style="border:1px solid #000; background-color:#163A70; color:#fff; padding:6px;">Name</th>
+                    <th style="border:1px solid #000; background-color:#163A70; color:#fff; padding:6px;">Company</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;">&nbsp;</td></tr>
+                <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;">&nbsp;</td></tr>
+                <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;">&nbsp;</td></tr>
+                <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;">&nbsp;</td></tr>
+                <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;">&nbsp;</td></tr>
+                <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;">&nbsp;</td></tr>
+                <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;">&nbsp;</td></tr>
+                <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;">&nbsp;</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <hr/>
+    """
+
+
 def extract_use_case_sort_key(summary: str, fallback_key: str = ""):
-    """
-    Sorting rules:
-    1. 'Exigences Générales' always first
-    2. Then numbered use cases: UC1, UC1.2, UC3.5, etc.
-    3. Then any other non-numbered items
-    """
     text = (summary or "").strip()
     normalized = text.lower()
 
@@ -762,15 +779,11 @@ def detect_changes(old_snapshot, new_snapshot):
 
     for key in sorted(new_keys - old_keys):
         item = new_snapshot[key]
-        changes.append(
-            f"Creation of {item['type']} {summarize_issue(item)}"
-        )
+        changes.append(f"Creation of {item['type']} {summarize_issue(item)}")
 
     for key in sorted(old_keys - new_keys):
         item = old_snapshot[key]
-        changes.append(
-            f"Removal of {item['type']} {summarize_issue(item)}"
-        )
+        changes.append(f"Removal of {item['type']} {summarize_issue(item)}")
 
     for key in sorted(old_keys & new_keys):
         old = old_snapshot[key]
@@ -779,22 +792,20 @@ def detect_changes(old_snapshot, new_snapshot):
         diffs = []
 
         if normalize_text(old.get("summary")) != normalize_text(new.get("summary")):
-            diffs.append("summary")
+            diffs.append("summary updated")
 
         if normalize_text(old.get("description")) != normalize_text(new.get("description")):
-            diffs.append("description")
+            diffs.append("description updated")
 
         if old.get("parent_key") != new.get("parent_key"):
-            diffs.append("parent linkage")
+            diffs.append("parent updated")
 
         if set(old.get("attachments", [])) != set(new.get("attachments", [])):
-            diffs.append("attachments")
+            diffs.append("attachments updated")
 
         if diffs:
             formatted = ", ".join(diffs)
-            changes.append(
-                f"Update of {new['type']} {summarize_issue(new)}: {formatted}"
-            )
+            changes.append(f"Update of {new['type']} {summarize_issue(new)}: {formatted}")
 
     return changes
 
@@ -843,7 +854,7 @@ def generate_ssd(author: str):
 
     if not old_snapshot:
         change_lines = None
-        log("No previous snapshot found -> modification text will be 'SSD generated'")
+        log("No previous snapshot found -> modification text will be 'Initial generation of the SSD'")
     else:
         change_lines = detect_changes(old_snapshot, new_snapshot)
         log(f"Detected {len(change_lines)} changes")
@@ -856,15 +867,15 @@ def generate_ssd(author: str):
 
     new_revision_version = format_version(next_version_num)
 
+    document_header_html = build_document_header_html()
     revision_html = build_revision_history_html(
         existing_rows=existing_rows,
         author=author,
         new_version=new_revision_version,
         change_lines=change_lines,
     )
-
     content_html = build_html(use_cases, reqs_by_uc)
-    full_html = revision_html + content_html
+    full_html = document_header_html + revision_html + content_html
 
     updated = update_confluence_page(
         page["title"],
