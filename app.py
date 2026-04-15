@@ -145,6 +145,9 @@ def escape_html(text: str) -> str:
         .replace(">", "&gt;")
     )
 
+def make_bookmark(name: str) -> str:
+    safe_name = re.sub(r"[^A-Za-z0-9_\-\.]", "-", name or "")
+    return f'<a name="{safe_name}"></a>'
 
 def normalize_anchor(text: str) -> str:
     base = (text or "").strip().lower()
@@ -545,7 +548,7 @@ def build_revision_history_html(existing_rows, author: str, new_version: str, ch
         )
 
     return (
-        "<h1 id='revision-history'>Revision History</h1>"
+        make_bookmark("revision-history") + "<h1>Revision History</h1>"
         '<table border="1" style="border-collapse:collapse; width:100%;">'
         "<thead>"
         "<tr>"
@@ -682,21 +685,25 @@ def build_document_header_html():
 
 
 def build_list_of_figures_html(regular_use_cases):
-    html_parts = ["<h1 id='list-of-figures'>List of Figures</h1>"]
+    html_parts = [make_bookmark("list-of-figures"), "<h1>List of Figures</h1>"]
 
     for index, use_case in enumerate(regular_use_cases, start=1):
         title = use_case["fields"].get("summary", "") or ""
-        html_parts.append(f"<p>Figure {index} - {escape_html(title)}</p>")
+        figure_anchor = f"figure-{index}"
+        html_parts.append(
+            f'<p><a href="#{figure_anchor}">Figure {index} - {escape_html(title)}</a></p>'
+        )
 
     html_parts.append("<hr/>")
     return "\n".join(html_parts)
 
 
 def build_table_of_contents_html(regular_use_cases):
-    html_parts = ["<h1 id='table-of-contents'>Table of Contents</h1>", "<ul>"]
+    html_parts = [make_bookmark("table-of-contents"), "<h1>Table of Contents</h1>", "<ul>"]
 
     html_parts.append("<li><a href='#revision-history'>Revision History</a></li>")
     html_parts.append("<li><a href='#list-of-figures'>List of Figures</a></li>")
+
     html_parts.append("<li><a href='#introduction-section'>1. Introduction</a><ul>")
     html_parts.append("<li><a href='#introduction-1-1'>1.1 Introduction</a></li>")
     html_parts.append("<li><a href='#introduction-1-2'>1.2 Purpose of the document</a></li>")
@@ -723,9 +730,11 @@ def build_table_of_contents_html(regular_use_cases):
 
 def build_introduction_html():
     return """
-    <h1 id="introduction-section">1. Introduction</h1>
+    """ + make_bookmark("introduction-section") + """
+    <h1>1. Introduction</h1>
 
-    <h2 id="introduction-1-1">1.1 Introduction</h2>
+    """ + make_bookmark("introduction-1-1") + """
+    <h2>1.1 Introduction</h2>
 
     <p>
         This document outlines the database model for a Digital ID solution designed to securely
@@ -741,7 +750,8 @@ def build_introduction_html():
         experience, enhance security, and support scalability as user demands grow.
     </p>
 
-    <h2 id="introduction-1-2">1.2 Purpose of the document</h2>
+    """ + make_bookmark("introduction-1-2") + """
+    <h2>1.2 Purpose of the document</h2>
 
     <p>
         The purpose of this document is to outline the database model solution for Digital ID.
@@ -764,7 +774,8 @@ def build_introduction_html():
         needs of the Digital ID project.
     </p>
 
-    <h2 id="introduction-1-3">1.3 Reference Document</h2>
+    """ + make_bookmark("introduction-1-3") + """
+    <h2>1.3 Reference Document</h2>
 
     <p>
         This section presents all reference documents used to build this document.
@@ -864,15 +875,18 @@ def build_html(use_cases, reqs_by_uc):
 
         log(f"build_html - processing general section {uc_key} with {len(requirements)} requirements")
 
-        html_parts.append(f"<h1 id='general-requirements-section'>2. {escape_html(uf.get('summary', ''))}</h1>")
+        html_parts.append(make_bookmark("general-requirements-section"))
+        html_parts.append(f"<h1>2. {escape_html(uf.get('summary', ''))}</h1>")
 
         use_case_description_html = adf_to_html(uf.get("description"))
         if use_case_description_html.strip():
-            html_parts.append("<h2 id='general-requirements-description'>2.1 Description</h2>")
+            html_parts.append(make_bookmark("general-requirements-description"))
+            html_parts.append("<h2>2.1 Description</h2>")
             html_parts.append(use_case_description_html)
 
         if requirements:
-            html_parts.append("<h2 id='general-requirements-list'>2.2 Requirements</h2>")
+            html_parts.append(make_bookmark("general-requirements-list"))
+            html_parts.append("<h2>2.2 Requirements</h2>")
             for req in requirements:
                 html_parts.append(build_requirement_html(req))
 
@@ -880,7 +894,8 @@ def build_html(use_cases, reqs_by_uc):
 
     if regular_use_cases:
         html_parts.append(page_break)
-        html_parts.append("<h1 id='use-cases-section'>3. Use Cases</h1>")
+        html_parts.append(make_bookmark("use-cases-section"))
+        html_parts.append("<h1>3. Use Cases</h1>")
 
         for index, use_case in enumerate(regular_use_cases, start=1):
             html_parts.append(page_break)
@@ -896,13 +911,14 @@ def build_html(use_cases, reqs_by_uc):
 
             log(f"build_html - processing use case {uc_key} as section {section_number} with {len(requirements)} requirements")
 
-            html_parts.append(
-                f"<h2 id='use-case-{index}'>{section_number} {escape_html(use_case_title)}</h2>"
-            )
+            html_parts.append(make_bookmark(f"use-case-{index}"))
+            html_parts.append(f"<h2>{section_number} {escape_html(use_case_title)}</h2>")
 
             if requirements:
                 first_req = True
                 for req in requirements:
+                    if first_req:
+                        html_parts.append(make_bookmark(f"figure-{index}"))
                     html_parts.append(
                         build_requirement_html(
                             req,
