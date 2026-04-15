@@ -634,14 +634,19 @@ def build_requirement_html(req):
 
     log(f"build_requirement_html - processing requirement {req_key} - {req_title}")
 
-    req_description_html = adf_to_html(rf.get("description"))
-    req_images_html = attachment_images_to_html(rf.get("attachment", []))
+    html_parts = []
 
-    html_parts = [f"<h3>{escape_html(full_title)}</h3>"]
+    # Requirement title
+    html_parts.append(f"<h3>{escape_html(full_title)}</h3>")
+
+    # Full structured content (keeps paragraphs, lists, etc.)
+    req_description_html = adf_to_html(rf.get("description"))
 
     if req_description_html.strip():
         html_parts.append(req_description_html)
 
+    # Images (diagram)
+    req_images_html = attachment_images_to_html(rf.get("attachment", []))
     if req_images_html:
         html_parts.append(req_images_html)
 
@@ -834,11 +839,6 @@ def build_html(use_cases, reqs_by_uc):
         if png_req:
             log(f"build_html - general section {uc_key} has diagram requirement {png_req.get('key', 'UNKNOWN')}")
             html_parts.append(build_requirement_html(png_req))
-
-        use_case_description_html = adf_to_html(uf.get("description"))
-        if use_case_description_html.strip():
-            html_parts.append("<h2>2.1 Description</h2>")
-            html_parts.append(use_case_description_html)
 
         if other_reqs:
             html_parts.append("<h2>2.2 Requirements</h2>")
