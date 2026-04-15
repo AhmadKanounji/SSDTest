@@ -30,6 +30,8 @@ FONT_SECTION = "font-family: Arial; font-weight: bold; font-size: 14pt;"
 FONT_SUBSECTION = "font-family: Arial; font-weight: bold; font-size: 10pt;"
 FONT_NORMAL = "font-family: 'Arial MT', Arial; font-size: 9pt; line-height: 1.4;"
 FONT_CAPTION = "text-align:center; font-style:italic; font-family: 'Arial MT', Arial; font-size: 9pt; line-height: 1.3;"
+PURPLE = "#7030A0"
+FONT_SECTION_PURPLE = f"font-family: Arial; font-weight: bold; font-size: 14pt; color: {PURPLE}; text-align:center;"
 PAGE_BREAK = """
 <p style="page-break-before: always; mso-page-break-before: always; margin:0;">
     <span style="mso-special-character: page-break;"></span>
@@ -548,7 +550,7 @@ def build_revision_history_html(existing_rows, author: str, new_version: str, ch
         )
 
     return (
-        f'<h1 style="{FONT_SECTION}">Revision History</h1>'
+        f'<h1 style="{FONT_SECTION_PURPLE}">Revision History</h1>'
         f'<table border="1" style="border-collapse:collapse; width:100%; {FONT_NORMAL}">'
         "<thead>"
         "<tr>"
@@ -650,7 +652,7 @@ def build_requirement_html(req, figure_caption=None):
 def build_document_header_html():
     return f"""
     <div style="text-align:center; margin-bottom:30px;">
-        <h1 style="{FONT_SECTION} margin-bottom:12px;">Industrial Property Rights</h1>
+        <h1 style="{FONT_SECTION_PURPLE} margin-bottom:12px;">Industrial Property Rights</h1>
 
         <p style="{FONT_NORMAL} max-width:900px; margin:0 auto 24px auto;">
             The information in this document is iDAKTO France Proprietary Information and is Confidential.
@@ -660,7 +662,7 @@ def build_document_header_html():
             This constraint applies to all pages of this document.
         </p>
 
-        <h1 style="{FONT_SECTION} margin-bottom:16px;">Distribution List</h1>
+        <h1 style="{FONT_SECTION_PURPLE} margin-bottom:16px;">Distribution List</h1>
 
         <table style="border-collapse:collapse; margin:0 auto; width:420px; {FONT_NORMAL}">
             <thead>
@@ -686,7 +688,7 @@ def build_document_header_html():
 
 
 def build_list_of_figures_html(regular_use_cases):
-    html_parts = [f'<h1 style="{FONT_SECTION}">List of Figures</h1>']
+    html_parts = [f'<h1 style="{FONT_SECTION_PURPLE}">List of Figures</h1>']
 
     for index, use_case in enumerate(regular_use_cases, start=1):
         title = use_case["fields"].get("summary", "") or ""
@@ -697,7 +699,7 @@ def build_list_of_figures_html(regular_use_cases):
 
 
 def build_table_of_contents_html(regular_use_cases):
-    html_parts = [f'<h1 style="{FONT_SECTION}">Table of Contents</h1>', f'<ul style="{FONT_NORMAL}">']
+    html_parts = [f'<h1 style="{FONT_SECTION_PURPLE}">Table of Contents</h1>', f'<ul style="{FONT_NORMAL}">']
 
     html_parts.append("<li>Revision History</li>")
     html_parts.append("<li>List of Figures</li>")
