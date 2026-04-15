@@ -892,6 +892,7 @@ def build_html(use_cases, reqs_by_uc):
 
     # Section 3 - Use Cases
     if regular_use_cases:
+        html_parts.append('<div style="page-break-before: always;"></div>')
         html_parts.append("<h1>3. Use Cases</h1>")
 
         for index, use_case in enumerate(regular_use_cases, start=1):
