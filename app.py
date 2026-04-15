@@ -137,12 +137,31 @@ def adf_to_text(adf):
     return "".join(parts).strip()
 
 
-def adf_to_html(adf):
+def adf_to_html(adf, attachments=None):
     if not adf:
         return ""
 
     if isinstance(adf, str):
         return f"<p>{escape_html(adf)}</p>"
+
+    attachments = attachments or []
+
+    image_attachments = [
+        att for att in attachments
+        if (att.get("mimeType") or "").lower().startswith("image/")
+        or (att.get("filename") or "").lower().endswith(
+            (".png", ".jpg", ".jpeg", ".gif", ".webp")
+        )
+    ]
+
+    image_index = {"value": 0}
+
+    def consume_next_image():
+        idx = image_index["value"]
+        if idx >= len(image_attachments):
+            return ""
+        image_index["value"] += 1
+        return render_confluence_image_from_attachment(image_attachments[idx])
 
     def render_node(node):
         if not isinstance(node, dict):
@@ -213,8 +232,15 @@ def adf_to_html(adf):
             inner = "".join(render_node(child) for child in content)
             return f"<pre><code>{inner}</code></pre>"
 
-        if node_type in ("mediaSingle", "media", "mediaGroup"):
-            return ""
+        # Insert images where Jira placed them
+        if node_type == "mediaSingle":
+            return consume_next_image()
+
+        if node_type == "mediaGroup":
+            return "".join(consume_next_image() for _ in content if isinstance(_, dict))
+
+        if node_type == "media":
+            return consume_next_image()
 
         return "".join(render_node(child) for child in content)
 
@@ -580,6 +606,29 @@ def ensure_attachment_on_confluence(attachment):
     log(f"ensure_attachment_on_confluence finished - {downloaded['filename']}")
     return downloaded["filename"]
 
+def render_confluence_image_from_attachment(att):
+    if not att:
+        return ""
+
+    mime = (att.get("mimeType") or "").lower()
+    filename = att.get("filename") or ""
+
+    is_image = mime.startswith("image/") or filename.lower().endswith(
+        (".png", ".jpg", ".jpeg", ".gif", ".webp")
+    )
+
+    if not is_image:
+        return ""
+
+    confluence_filename = ensure_attachment_on_confluence(att)
+    if not confluence_filename:
+        return ""
+
+    return (
+        f'<p><ac:image ac:width="900">'
+        f'<ri:attachment ri:filename="{escape_html(confluence_filename)}" />'
+        f'</ac:image></p>'
+    )
 
 def attachment_images_to_html(attachments):
     if not attachments:
@@ -634,21 +683,15 @@ def build_requirement_html(req):
 
     log(f"build_requirement_html - processing requirement {req_key} - {req_title}")
 
-    html_parts = []
+    html_parts = [f"<h3>{escape_html(full_title)}</h3>"]
 
-    # Requirement title
-    html_parts.append(f"<h3>{escape_html(full_title)}</h3>")
-
-    # Full structured content (keeps paragraphs, lists, etc.)
-    req_description_html = adf_to_html(rf.get("description"))
+    req_description_html = adf_to_html(
+        rf.get("description"),
+        attachments=rf.get("attachment", [])
+    )
 
     if req_description_html.strip():
         html_parts.append(req_description_html)
-
-    # Images (diagram)
-    req_images_html = attachment_images_to_html(rf.get("attachment", []))
-    if req_images_html:
-        html_parts.append(req_images_html)
 
     return "\n".join(html_parts)
 
@@ -876,7 +919,10 @@ def build_html(use_cases, reqs_by_uc):
                 log(f"build_html - use case {uc_key} has diagram requirement {png_req.get('key', 'UNKNOWN')}")
                 html_parts.append(build_requirement_html(png_req))
 
-            use_case_description_html = adf_to_html(uf.get("description"))
+            use_case_description_html = adf_to_html(
+                uf.get("description"),
+                attachments=uf.get("attachment", [])
+            )
             if use_case_description_html.strip():
                 html_parts.append(f"<h3>{section_number}.1 Description</h3>")
                 html_parts.append(use_case_description_html)
