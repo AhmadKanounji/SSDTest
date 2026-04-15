@@ -146,6 +146,13 @@ def escape_html(text: str) -> str:
     )
 
 
+def normalize_anchor(text: str) -> str:
+    base = (text or "").strip().lower()
+    base = re.sub(r"[^\w\s\.-]", "", base, flags=re.UNICODE)
+    base = re.sub(r"\s+", "-", base)
+    return base or "section"
+
+
 def download_jira_attachment(attachment):
     content_url = attachment.get("content")
     filename = attachment.get("filename") or "attachment.bin"
@@ -273,7 +280,7 @@ def render_confluence_image_from_attachment(att):
     )
 
 
-def adf_to_html(adf, attachments=None):
+def adf_to_html(adf, attachments=None, image_captions=None):
     if not adf:
         return ""
 
@@ -281,6 +288,7 @@ def adf_to_html(adf, attachments=None):
         return f"<p>{escape_html(adf)}</p>"
 
     attachments = attachments or []
+    image_captions = image_captions or []
 
     image_attachments = [
         att for att in attachments
@@ -296,8 +304,19 @@ def adf_to_html(adf, attachments=None):
         idx = image_index["value"]
         if idx >= len(image_attachments):
             return ""
+
         image_index["value"] += 1
-        return render_confluence_image_from_attachment(image_attachments[idx])
+        image_html = render_confluence_image_from_attachment(image_attachments[idx])
+
+        caption_html = ""
+        if idx < len(image_captions) and image_captions[idx]:
+            caption_html = (
+                f'<p style="text-align:center; font-style:italic; margin-top:4px;">'
+                f'{escape_html(image_captions[idx])}'
+                f'</p>'
+            )
+
+        return image_html + caption_html
 
     def render_node(node):
         if not isinstance(node, dict):
@@ -526,7 +545,7 @@ def build_revision_history_html(existing_rows, author: str, new_version: str, ch
         )
 
     return (
-        "<h1>Revision History</h1>"
+        "<h1 id='revision-history'>Revision History</h1>"
         '<table border="1" style="border-collapse:collapse; width:100%;">'
         "<thead>"
         "<tr>"
@@ -602,7 +621,7 @@ def save_meta_to_attachment(revision_version: str, snapshot: dict):
     log(f"save_meta_to_attachment finished - {REVISION_META_FILENAME}")
 
 
-def build_requirement_html(req):
+def build_requirement_html(req, figure_caption=None):
     rf = req["fields"]
     req_key = req.get("key", "UNKNOWN")
     req_title = clean_req(rf.get("summary", ""))
@@ -614,7 +633,8 @@ def build_requirement_html(req):
 
     req_description_html = adf_to_html(
         rf.get("description"),
-        attachments=rf.get("attachment", [])
+        attachments=rf.get("attachment", []),
+        image_captions=[figure_caption] if figure_caption else []
     )
 
     if req_description_html.strip():
@@ -661,11 +681,51 @@ def build_document_header_html():
     """
 
 
+def build_list_of_figures_html(regular_use_cases):
+    html_parts = ["<h1 id='list-of-figures'>List of Figures</h1>"]
+
+    for index, use_case in enumerate(regular_use_cases, start=1):
+        title = use_case["fields"].get("summary", "") or ""
+        html_parts.append(f"<p>Figure {index} - {escape_html(title)}</p>")
+
+    html_parts.append("<hr/>")
+    return "\n".join(html_parts)
+
+
+def build_table_of_contents_html(regular_use_cases):
+    html_parts = ["<h1 id='table-of-contents'>Table of Contents</h1>", "<ul>"]
+
+    html_parts.append("<li><a href='#revision-history'>Revision History</a></li>")
+    html_parts.append("<li><a href='#list-of-figures'>List of Figures</a></li>")
+    html_parts.append("<li><a href='#introduction-section'>1. Introduction</a><ul>")
+    html_parts.append("<li><a href='#introduction-1-1'>1.1 Introduction</a></li>")
+    html_parts.append("<li><a href='#introduction-1-2'>1.2 Purpose of the document</a></li>")
+    html_parts.append("<li><a href='#introduction-1-3'>1.3 Reference Document</a></li>")
+    html_parts.append("</ul></li>")
+
+    html_parts.append("<li><a href='#general-requirements-section'>2. Exigences Générales</a><ul>")
+    html_parts.append("<li><a href='#general-requirements-description'>2.1 Description</a></li>")
+    html_parts.append("<li><a href='#general-requirements-list'>2.2 Requirements</a></li>")
+    html_parts.append("</ul></li>")
+
+    html_parts.append("<li><a href='#use-cases-section'>3. Use Cases</a><ul>")
+    for index, use_case in enumerate(regular_use_cases, start=1):
+        anchor = f"use-case-{index}"
+        title = use_case["fields"].get("summary", "") or ""
+        html_parts.append(f"<li><a href='#{anchor}'>3.{index} {escape_html(title)}</a></li>")
+    html_parts.append("</ul></li>")
+
+    html_parts.append("</ul>")
+    html_parts.append("<hr/>")
+
+    return "\n".join(html_parts)
+
+
 def build_introduction_html():
     return """
-    <h1>1. Introduction</h1>
+    <h1 id="introduction-section">1. Introduction</h1>
 
-    <h2>1.1 Introduction</h2>
+    <h2 id="introduction-1-1">1.1 Introduction</h2>
 
     <p>
         This document outlines the database model for a Digital ID solution designed to securely
@@ -681,7 +741,7 @@ def build_introduction_html():
         experience, enhance security, and support scalability as user demands grow.
     </p>
 
-    <h2>1.2 Purpose of the document</h2>
+    <h2 id="introduction-1-2">1.2 Purpose of the document</h2>
 
     <p>
         The purpose of this document is to outline the database model solution for Digital ID.
@@ -704,7 +764,7 @@ def build_introduction_html():
         needs of the Digital ID project.
     </p>
 
-    <h2>1.3 Reference Document</h2>
+    <h2 id="introduction-1-3">1.3 Reference Document</h2>
 
     <p>
         This section presents all reference documents used to build this document.
@@ -794,7 +854,6 @@ def build_html(use_cases, reqs_by_uc):
         else:
             regular_use_cases.append(use_case)
 
-    # Section 2 - Exigences Générales
     if general_use_case:
         html_parts.append(page_break)
 
@@ -805,24 +864,23 @@ def build_html(use_cases, reqs_by_uc):
 
         log(f"build_html - processing general section {uc_key} with {len(requirements)} requirements")
 
-        html_parts.append(f"<h1>2. {escape_html(uf.get('summary', ''))}</h1>")
+        html_parts.append(f"<h1 id='general-requirements-section'>2. {escape_html(uf.get('summary', ''))}</h1>")
 
         use_case_description_html = adf_to_html(uf.get("description"))
         if use_case_description_html.strip():
-            html_parts.append("<h2>2.1 Description</h2>")
+            html_parts.append("<h2 id='general-requirements-description'>2.1 Description</h2>")
             html_parts.append(use_case_description_html)
 
         if requirements:
-            html_parts.append("<h2>2.2 Requirements</h2>")
+            html_parts.append("<h2 id='general-requirements-list'>2.2 Requirements</h2>")
             for req in requirements:
                 html_parts.append(build_requirement_html(req))
 
         html_parts.append("<hr/>")
 
-    # Section 3 - Use Cases
     if regular_use_cases:
         html_parts.append(page_break)
-        html_parts.append("<h1>3. Use Cases</h1>")
+        html_parts.append("<h1 id='use-cases-section'>3. Use Cases</h1>")
 
         for index, use_case in enumerate(regular_use_cases, start=1):
             html_parts.append(page_break)
@@ -833,13 +891,25 @@ def build_html(use_cases, reqs_by_uc):
             requirements = sorted(requirements, key=extract_requirement_sort_key)
 
             section_number = f"3.{index}"
+            use_case_title = uf.get("summary", "")
+            figure_caption = f"Figure {index} - {use_case_title}"
 
             log(f"build_html - processing use case {uc_key} as section {section_number} with {len(requirements)} requirements")
 
-            html_parts.append(f"<h2>{section_number} {escape_html(uf.get('summary', ''))}</h2>")
+            html_parts.append(
+                f"<h2 id='use-case-{index}'>{section_number} {escape_html(use_case_title)}</h2>"
+            )
 
-            for req in requirements:
-                html_parts.append(build_requirement_html(req))
+            if requirements:
+                first_req = True
+                for req in requirements:
+                    html_parts.append(
+                        build_requirement_html(
+                            req,
+                            figure_caption=figure_caption if first_req else None
+                        )
+                    )
+                    first_req = False
 
             html_parts.append("<hr/>")
 
@@ -909,6 +979,20 @@ def generate_ssd(author: str):
                 parent_key = parent["key"]
                 reqs_by_uc.setdefault(parent_key, []).append(issue)
 
+    sorted_use_cases = sorted(
+        use_cases,
+        key=lambda x: extract_use_case_sort_key(
+            x["fields"].get("summary", ""),
+            x.get("key", "")
+        )
+    )
+
+    regular_use_cases = [
+        uc for uc in sorted_use_cases
+        if (uc["fields"].get("summary", "") or "").strip().lower()
+        not in ["exigences générales", "exigences generales"]
+    ]
+
     page = get_confluence_page()
     existing_html = page.get("body", {}).get("storage", {}).get("value", "")
 
@@ -949,6 +1033,8 @@ def generate_ssd(author: str):
         new_version=new_revision_version,
         change_lines=change_lines,
     )
+    list_of_figures_html = build_list_of_figures_html(regular_use_cases)
+    toc_html = build_table_of_contents_html(regular_use_cases)
     introduction_html = build_introduction_html()
     content_html = build_html(use_cases, reqs_by_uc)
 
@@ -962,6 +1048,8 @@ def generate_ssd(author: str):
         document_header_html +
         page_break +
         revision_html +
+        list_of_figures_html +
+        toc_html +
         page_break +
         introduction_html +
         content_html
