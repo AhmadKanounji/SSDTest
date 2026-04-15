@@ -137,6 +137,142 @@ def adf_to_text(adf):
     return "".join(parts).strip()
 
 
+def escape_html(text: str) -> str:
+    text = text or ""
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def download_jira_attachment(attachment):
+    content_url = attachment.get("content")
+    filename = attachment.get("filename") or "attachment.bin"
+    mime_type = attachment.get("mimeType") or "application/octet-stream"
+
+    if not content_url:
+        log(f"download_jira_attachment skipped - no content URL for {filename}")
+        return None
+
+    log(f"download_jira_attachment started - {filename}")
+
+    r = requests.get(content_url, auth=auth)
+    log(f"download_jira_attachment response status for {filename}: {r.status_code}")
+    r.raise_for_status()
+
+    log(f"download_jira_attachment finished - {filename}, size={len(r.content)} bytes")
+
+    return {
+        "filename": filename,
+        "mime_type": mime_type,
+        "content": r.content,
+    }
+
+
+def upload_attachment_to_confluence(filename, file_bytes, mime_type):
+    log(f"upload_attachment_to_confluence started - {filename}")
+
+    url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
+    headers = {"X-Atlassian-Token": "nocheck"}
+
+    files = {
+        "file": (filename, file_bytes, mime_type)
+    }
+    data = {
+        "minorEdit": "true",
+        "comment": "Updated by SSD automation"
+    }
+
+    r = requests.put(url, auth=auth, headers=headers, files=files, data=data)
+
+    log(f"upload_attachment response: {r.status_code}")
+    log(f"upload_attachment body: {r.text[:1000]}")
+    r.raise_for_status()
+
+    reset_attachment_cache()
+
+    log("upload_attachment_to_confluence finished")
+    return r.json()
+
+
+def get_existing_confluence_attachments():
+    log("get_existing_confluence_attachments started")
+
+    attachments = {}
+    start = 0
+    limit = 100
+
+    while True:
+        url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
+        params = {"start": start, "limit": limit}
+
+        r = requests.get(url, params=params, auth=auth)
+        log(f"get_existing_confluence_attachments page start={start}, status={r.status_code}")
+        log(f"get_existing_confluence_attachments body: {r.text[:1000]}")
+        r.raise_for_status()
+
+        data = r.json()
+
+        for result in data.get("results", []):
+            title = result.get("title")
+            if title:
+                attachments[title] = result
+
+        size = len(data.get("results", []))
+        if size < limit:
+            break
+
+        start += limit
+
+    log(f"get_existing_confluence_attachments finished - total={len(attachments)}")
+    return attachments
+
+
+def ensure_attachment_on_confluence(attachment):
+    filename = attachment.get("filename") or "unknown"
+    log(f"ensure_attachment_on_confluence started - {filename}")
+
+    downloaded = download_jira_attachment(attachment)
+    if not downloaded:
+        log(f"ensure_attachment_on_confluence skipped - could not download {filename}")
+        return None
+
+    upload_attachment_to_confluence(
+        filename=downloaded["filename"],
+        file_bytes=downloaded["content"],
+        mime_type=downloaded["mime_type"],
+    )
+
+    log(f"ensure_attachment_on_confluence finished - {downloaded['filename']}")
+    return downloaded["filename"]
+
+
+def render_confluence_image_from_attachment(att):
+    if not att:
+        return ""
+
+    mime = (att.get("mimeType") or "").lower()
+    filename = att.get("filename") or ""
+
+    is_image = mime.startswith("image/") or filename.lower().endswith(
+        (".png", ".jpg", ".jpeg", ".gif", ".webp")
+    )
+
+    if not is_image:
+        return ""
+
+    confluence_filename = ensure_attachment_on_confluence(att)
+    if not confluence_filename:
+        return ""
+
+    return (
+        f'<p><ac:image ac:width="900">'
+        f'<ri:attachment ri:filename="{escape_html(confluence_filename)}" />'
+        f'</ac:image></p>'
+    )
+
+
 def adf_to_html(adf, attachments=None):
     if not adf:
         return ""
@@ -232,12 +368,11 @@ def adf_to_html(adf, attachments=None):
             inner = "".join(render_node(child) for child in content)
             return f"<pre><code>{inner}</code></pre>"
 
-        # Insert images where Jira placed them
         if node_type == "mediaSingle":
             return consume_next_image()
 
         if node_type == "mediaGroup":
-            return "".join(consume_next_image() for _ in content if isinstance(_, dict))
+            return "".join(consume_next_image() for child in content if isinstance(child, dict))
 
         if node_type == "media":
             return consume_next_image()
@@ -245,15 +380,6 @@ def adf_to_html(adf, attachments=None):
         return "".join(render_node(child) for child in content)
 
     return render_node(adf)
-
-
-def escape_html(text: str) -> str:
-    text = text or ""
-    return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
 
 
 def clean_req(summary: str) -> str:
@@ -417,68 +543,6 @@ def build_revision_history_html(existing_rows, author: str, new_version: str, ch
     )
 
 
-def get_existing_confluence_attachments():
-    log("get_existing_confluence_attachments started")
-
-    attachments = {}
-    start = 0
-    limit = 100
-
-    while True:
-        url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
-        params = {"start": start, "limit": limit}
-
-        r = requests.get(url, params=params, auth=auth)
-        log(f"get_existing_confluence_attachments page start={start}, status={r.status_code}")
-        log(f"get_existing_confluence_attachments body: {r.text[:1000]}")
-        r.raise_for_status()
-
-        data = r.json()
-
-        for result in data.get("results", []):
-            title = result.get("title")
-            if title:
-                attachments[title] = result
-
-        size = len(data.get("results", []))
-        if size < limit:
-            break
-
-        start += limit
-
-    log(f"get_existing_confluence_attachments finished - total={len(attachments)}")
-    return attachments
-
-
-def download_confluence_attachment_by_filename(filename: str):
-    attachments = get_existing_confluence_attachments_cached()
-    existing = attachments.get(filename)
-
-    if not existing:
-        log(f"download_confluence_attachment_by_filename - attachment not found: {filename}")
-        return None
-
-    download_link = existing.get("_links", {}).get("download")
-    if not download_link:
-        log(f"download_confluence_attachment_by_filename - no download link for: {filename}")
-        return None
-
-    if download_link.startswith("/"):
-        url = f"{CONF_BASE}{download_link}"
-    else:
-        url = download_link
-
-    log(f"download_confluence_attachment_by_filename started - {filename}")
-    log(f"Resolved attachment download URL: {url}")
-
-    r = requests.get(url, auth=auth)
-    log(f"download_confluence_attachment_by_filename response status for {filename}: {r.status_code}")
-    log(f"download_confluence_attachment_by_filename response body for {filename}: {r.text[:1000]}")
-    r.raise_for_status()
-
-    return r.content
-
-
 def load_existing_meta_from_attachment():
     filename = REVISION_META_FILENAME
 
@@ -521,32 +585,6 @@ def load_existing_meta_from_attachment():
         return None
 
 
-def upload_attachment_to_confluence(filename, file_bytes, mime_type):
-    log(f"upload_attachment_to_confluence started - {filename}")
-
-    url = f"{CONF_BASE}/rest/api/content/{CONFLUENCE_PAGE_ID}/child/attachment"
-    headers = {"X-Atlassian-Token": "nocheck"}
-
-    files = {
-        "file": (filename, file_bytes, mime_type)
-    }
-    data = {
-        "minorEdit": "true",
-        "comment": "Updated by SSD automation"
-    }
-
-    r = requests.put(url, auth=auth, headers=headers, files=files, data=data)
-
-    log(f"upload_attachment response: {r.status_code}")
-    log(f"upload_attachment body: {r.text[:1000]}")
-    r.raise_for_status()
-
-    reset_attachment_cache()
-
-    log("upload_attachment_to_confluence finished")
-    return r.json()
-
-
 def save_meta_to_attachment(revision_version: str, snapshot: dict):
     payload = {
         "revision_version": revision_version,
@@ -562,117 +600,6 @@ def save_meta_to_attachment(revision_version: str, snapshot: dict):
     )
 
     log(f"save_meta_to_attachment finished - {REVISION_META_FILENAME}")
-
-
-def download_jira_attachment(attachment):
-    content_url = attachment.get("content")
-    filename = attachment.get("filename") or "attachment.bin"
-    mime_type = attachment.get("mimeType") or "application/octet-stream"
-
-    if not content_url:
-        log(f"download_jira_attachment skipped - no content URL for {filename}")
-        return None
-
-    log(f"download_jira_attachment started - {filename}")
-
-    r = requests.get(content_url, auth=auth)
-    log(f"download_jira_attachment response status for {filename}: {r.status_code}")
-    r.raise_for_status()
-
-    log(f"download_jira_attachment finished - {filename}, size={len(r.content)} bytes")
-
-    return {
-        "filename": filename,
-        "mime_type": mime_type,
-        "content": r.content,
-    }
-
-
-def ensure_attachment_on_confluence(attachment):
-    filename = attachment.get("filename") or "unknown"
-    log(f"ensure_attachment_on_confluence started - {filename}")
-
-    downloaded = download_jira_attachment(attachment)
-    if not downloaded:
-        log(f"ensure_attachment_on_confluence skipped - could not download {filename}")
-        return None
-
-    upload_attachment_to_confluence(
-        filename=downloaded["filename"],
-        file_bytes=downloaded["content"],
-        mime_type=downloaded["mime_type"],
-    )
-
-    log(f"ensure_attachment_on_confluence finished - {downloaded['filename']}")
-    return downloaded["filename"]
-
-def render_confluence_image_from_attachment(att):
-    if not att:
-        return ""
-
-    mime = (att.get("mimeType") or "").lower()
-    filename = att.get("filename") or ""
-
-    is_image = mime.startswith("image/") or filename.lower().endswith(
-        (".png", ".jpg", ".jpeg", ".gif", ".webp")
-    )
-
-    if not is_image:
-        return ""
-
-    confluence_filename = ensure_attachment_on_confluence(att)
-    if not confluence_filename:
-        return ""
-
-    return (
-        f'<p><ac:image ac:width="900">'
-        f'<ri:attachment ri:filename="{escape_html(confluence_filename)}" />'
-        f'</ac:image></p>'
-    )
-
-def attachment_images_to_html(attachments):
-    if not attachments:
-        return ""
-
-    html_parts = []
-
-    for att in attachments:
-        mime = (att.get("mimeType") or "").lower()
-        filename = att.get("filename") or ""
-
-        is_image = mime.startswith("image/") or filename.lower().endswith(
-            (".png", ".jpg", ".jpeg", ".gif", ".webp")
-        )
-
-        if not is_image:
-            log(f"attachment_images_to_html skipped non-image attachment - {filename}")
-            continue
-
-        log(f"attachment_images_to_html processing image attachment - {filename}")
-
-        confluence_filename = ensure_attachment_on_confluence(att)
-        if not confluence_filename:
-            log(f"attachment_images_to_html skipped - failed to ensure attachment on Confluence for {filename}")
-            continue
-
-        html_parts.append(
-            f'<p><ac:image ac:width="900"><ri:attachment ri:filename="{escape_html(confluence_filename)}" /></ac:image></p>'
-        )
-
-    return "\n".join(html_parts)
-
-
-def has_png_attachment(issue):
-    attachments = issue["fields"].get("attachment", []) or []
-
-    for att in attachments:
-        filename = (att.get("filename") or "").lower()
-        mime = (att.get("mimeType") or "").lower()
-
-        if filename.endswith(".png") or mime == "image/png":
-            return True
-
-    return False
 
 
 def build_requirement_html(req):
@@ -732,6 +659,8 @@ def build_document_header_html():
     </div>
     <hr/>
     """
+
+
 def build_introduction_html():
     return """
     <h1>1. Introduction</h1>
@@ -841,6 +770,12 @@ def extract_requirement_sort_key(req):
 def build_html(use_cases, reqs_by_uc):
     html_parts = []
 
+    page_break = """
+    <p style="page-break-before: always; mso-page-break-before: always; margin:0;">
+        <span style="mso-special-character: page-break;"></span>
+    </p>
+    """
+
     use_cases = sorted(
         use_cases,
         key=lambda x: extract_use_case_sort_key(
@@ -861,7 +796,7 @@ def build_html(use_cases, reqs_by_uc):
 
     # Section 2 - Exigences Générales
     if general_use_case:
-        html_parts.append(page_break = ''' <p style="page-break-before: always; mso-page-break-before: always;">     <span style="mso-special-character: page-break;"></span> </p> ''')
+        html_parts.append(page_break)
 
         uc_key = general_use_case["key"]
         uf = general_use_case["fields"]
@@ -886,11 +821,11 @@ def build_html(use_cases, reqs_by_uc):
 
     # Section 3 - Use Cases
     if regular_use_cases:
-        html_parts.append(page_break = ''' <p style="page-break-before: always; mso-page-break-before: always;">     <span style="mso-special-character: page-break;"></span> </p> ''')
+        html_parts.append(page_break)
         html_parts.append("<h1>3. Use Cases</h1>")
 
         for index, use_case in enumerate(regular_use_cases, start=1):
-            html_parts.append(page_break = ''' <p style="page-break-before: always; mso-page-break-before: always;">     <span style="mso-special-character: page-break;"></span> </p> ''')
+            html_parts.append(page_break)
 
             uc_key = use_case["key"]
             uf = use_case["fields"]
@@ -1014,10 +949,14 @@ def generate_ssd(author: str):
         new_version=new_revision_version,
         change_lines=change_lines,
     )
-    content_html = build_html(use_cases, reqs_by_uc)
     introduction_html = build_introduction_html()
+    content_html = build_html(use_cases, reqs_by_uc)
 
-    page_break = page_break = ''' <p style="page-break-before: always; mso-page-break-before: always;">     <span style="mso-special-character: page-break;"></span> </p> '''
+    page_break = """
+    <p style="page-break-before: always; mso-page-break-before: always; margin:0;">
+        <span style="mso-special-character: page-break;"></span>
+    </p>
+    """
 
     full_html = (
         document_header_html +
@@ -1025,7 +964,6 @@ def generate_ssd(author: str):
         revision_html +
         page_break +
         introduction_html +
-        page_break +
         content_html
     )
 
