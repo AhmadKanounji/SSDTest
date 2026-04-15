@@ -801,25 +801,26 @@ def build_html(use_cases, reqs_by_uc):
         )
     )
 
+    general_use_case = None
+    regular_use_cases = []
+
     for use_case in use_cases:
-        uc_key = use_case["key"]
-        uf = use_case["fields"]
+        title = (use_case["fields"].get("summary", "") or "").strip().lower()
+        if title in ["exigences générales", "exigences generales"]:
+            general_use_case = use_case
+        else:
+            regular_use_cases.append(use_case)
+
+    # Section 2 - Exigences Générales
+    if general_use_case:
+        uc_key = general_use_case["key"]
+        uf = general_use_case["fields"]
         requirements = reqs_by_uc.get(uc_key, [])
         requirements = sorted(requirements, key=extract_requirement_sort_key)
 
-        log(f"build_html - processing use case {uc_key} with {len(requirements)} requirements")
+        log(f"build_html - processing general section {uc_key} with {len(requirements)} requirements")
 
-        title = uf.get("summary", "")
-        normalized = title.strip().lower()
-
-        if normalized in ["exigences générales", "exigences generales"]:
-            html_parts.append(f"<h1>2. {escape_html(title)}</h1>")
-            description_title = "2.1 Description"
-            requirements_title = "2.2 Requirements"
-        else:
-            html_parts.append(f"<h1>{escape_html(title)}</h1>")
-            description_title = "Description"
-            requirements_title = "Requirements"
+        html_parts.append(f"<h1>2. {escape_html(uf.get('summary', ''))}</h1>")
 
         png_req = None
         other_reqs = []
@@ -831,20 +832,61 @@ def build_html(use_cases, reqs_by_uc):
                 other_reqs.append(req)
 
         if png_req:
-            log(f"build_html - use case {uc_key} has diagram requirement {png_req.get('key', 'UNKNOWN')}")
+            log(f"build_html - general section {uc_key} has diagram requirement {png_req.get('key', 'UNKNOWN')}")
             html_parts.append(build_requirement_html(png_req))
 
         use_case_description_html = adf_to_html(uf.get("description"))
         if use_case_description_html.strip():
-            html_parts.append(f"<h2>{description_title}</h2>")
+            html_parts.append("<h2>2.1 Description</h2>")
             html_parts.append(use_case_description_html)
 
         if other_reqs:
-            html_parts.append(f"<h2>{requirements_title}</h2>")
+            html_parts.append("<h2>2.2 Requirements</h2>")
             for req in other_reqs:
                 html_parts.append(build_requirement_html(req))
 
         html_parts.append("<hr/>")
+
+    # Section 3 - Use Cases
+    if regular_use_cases:
+        html_parts.append("<h1>3. Use Cases</h1>")
+
+        for index, use_case in enumerate(regular_use_cases, start=1):
+            uc_key = use_case["key"]
+            uf = use_case["fields"]
+            requirements = reqs_by_uc.get(uc_key, [])
+            requirements = sorted(requirements, key=extract_requirement_sort_key)
+
+            section_number = f"3.{index}"
+
+            log(f"build_html - processing use case {uc_key} as section {section_number} with {len(requirements)} requirements")
+
+            html_parts.append(f"<h2>{section_number} {escape_html(uf.get('summary', ''))}</h2>")
+
+            png_req = None
+            other_reqs = []
+
+            for req in requirements:
+                if png_req is None and has_png_attachment(req):
+                    png_req = req
+                else:
+                    other_reqs.append(req)
+
+            if png_req:
+                log(f"build_html - use case {uc_key} has diagram requirement {png_req.get('key', 'UNKNOWN')}")
+                html_parts.append(build_requirement_html(png_req))
+
+            use_case_description_html = adf_to_html(uf.get("description"))
+            if use_case_description_html.strip():
+                html_parts.append(f"<h3>{section_number}.1 Description</h3>")
+                html_parts.append(use_case_description_html)
+
+            if other_reqs:
+                html_parts.append(f"<h3>{section_number}.2 Requirements</h3>")
+                for req in other_reqs:
+                    html_parts.append(build_requirement_html(req))
+
+            html_parts.append("<hr/>")
 
     return "\n".join(html_parts)
 
