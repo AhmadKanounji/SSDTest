@@ -554,10 +554,10 @@ def build_revision_history_html(existing_rows, author: str, new_version: str, ch
         f'<table border="1" style="border-collapse:collapse; width:100%; {FONT_NORMAL}">'
         "<thead>"
         "<tr>"
-        f'<th style="{FONT_SUBSECTION}">Version</th>'
-        f'<th style="{FONT_SUBSECTION}">Date</th>'
-        f'<th style="{FONT_SUBSECTION}">Author</th>'
-        f'<th style="{FONT_SUBSECTION}">Modification</th>'
+        f'<th style="background-color:#7030A0; color:#FFFFFF; border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Version</th>'
+        f'<th style="background-color:#7030A0; color:#FFFFFF; border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Date</th>'
+        f'<th style="background-color:#7030A0; color:#FFFFFF; border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Author</th>'
+        f'<th style="background-color:#7030A0; color:#FFFFFF; border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Modification</th>'
         "</tr>"
         "</thead>"
         "<tbody>"
@@ -667,8 +667,8 @@ def build_document_header_html():
         <table style="border-collapse:collapse; margin:0 auto; width:420px; {FONT_NORMAL}">
             <thead>
                 <tr>
-                    <th style="border:1px solid #000; background-color:#163A70; color:#fff; padding:6px; {FONT_SUBSECTION}">Name</th>
-                    <th style="border:1px solid #000; background-color:#163A70; color:#fff; padding:6px; {FONT_SUBSECTION}">Company</th>
+                    <th style="border:1px solid #000; background-color:#7030A0; color:#FFFFFF; padding:6px; {FONT_SUBSECTION}">Name</th>
+                    <th style="border:1px solid #000; background-color:#7030A0; color:#FFFFFF; padding:6px; {FONT_SUBSECTION}">Company</th>
                 </tr>
             </thead>
             <tbody>
@@ -778,11 +778,11 @@ def build_introduction_html():
     <table style="border-collapse:collapse; width:100%; {FONT_NORMAL}">
         <thead>
             <tr>
-                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Id</th>
-                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Document Name</th>
-                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Release</th>
-                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Date</th>
-                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Reference</th>
+                <th style="background-color:#7030A0; color:#FFFFFF; border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Id</th>
+                <th style="background-color:#7030A0; color:#FFFFFF; border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Document Name</th>
+                <th style="background-color:#7030A0; color:#FFFFFF; border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Release</th>
+                <th style="background-color:#7030A0; color:#FFFFFF; border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Date</th>
+                <th style="background-color:#7030A0; color:#FFFFFF; border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Reference</th>
             </tr>
         </thead>
         <tbody>
