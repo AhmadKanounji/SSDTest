@@ -861,7 +861,7 @@ def build_html(use_cases, reqs_by_uc):
 
     # Section 2 - Exigences Générales
     if general_use_case:
-        html_parts.append(page_break = '<p style="page-break-before: always; mso-page-break-before: always; margin:0;"></p>')
+        html_parts.append(page_break = ''' <p style="page-break-before: always; mso-page-break-before: always;">     <span style="mso-special-character: page-break;"></span> </p> ''')
 
         uc_key = general_use_case["key"]
         uf = general_use_case["fields"]
@@ -886,11 +886,11 @@ def build_html(use_cases, reqs_by_uc):
 
     # Section 3 - Use Cases
     if regular_use_cases:
-        html_parts.append(page_break = '<p style="page-break-before: always; mso-page-break-before: always; margin:0;"></p>')
+        html_parts.append(page_break = ''' <p style="page-break-before: always; mso-page-break-before: always;">     <span style="mso-special-character: page-break;"></span> </p> ''')
         html_parts.append("<h1>3. Use Cases</h1>")
 
         for index, use_case in enumerate(regular_use_cases, start=1):
-            html_parts.append(page_break = '<p style="page-break-before: always; mso-page-break-before: always; margin:0;"></p>')
+            html_parts.append(page_break = ''' <p style="page-break-before: always; mso-page-break-before: always;">     <span style="mso-special-character: page-break;"></span> </p> ''')
 
             uc_key = use_case["key"]
             uf = use_case["fields"]
@@ -1017,7 +1017,7 @@ def generate_ssd(author: str):
     content_html = build_html(use_cases, reqs_by_uc)
     introduction_html = build_introduction_html()
 
-    page_break = page_break = '<p style="page-break-before: always; mso-page-break-before: always; margin:0;"></p>'
+    page_break = page_break = ''' <p style="page-break-before: always; mso-page-break-before: always;">     <span style="mso-special-character: page-break;"></span> </p> '''
 
     full_html = (
         document_header_html +
