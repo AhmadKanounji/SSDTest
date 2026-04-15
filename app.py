@@ -26,6 +26,16 @@ auth = HTTPBasicAuth(EMAIL, API_TOKEN)
 ATTACHMENT_CACHE = None
 REVISION_META_FILENAME = "ssd_revision_meta.json"
 
+FONT_SECTION = "font-family: Arial; font-weight: bold; font-size: 14pt;"
+FONT_SUBSECTION = "font-family: Arial; font-weight: bold; font-size: 10pt;"
+FONT_NORMAL = "font-family: 'Arial MT', Arial; font-size: 9pt; line-height: 1.4;"
+FONT_CAPTION = "text-align:center; font-style:italic; font-family: 'Arial MT', Arial; font-size: 9pt; line-height: 1.3;"
+PAGE_BREAK = """
+<p style="page-break-before: always; mso-page-break-before: always; margin:0;">
+    <span style="mso-special-character: page-break;"></span>
+</p>
+"""
+
 
 def get_existing_confluence_attachments_cached():
     global ATTACHMENT_CACHE
@@ -144,16 +154,6 @@ def escape_html(text: str) -> str:
         .replace("<", "&lt;")
         .replace(">", "&gt;")
     )
-
-def make_bookmark(name: str) -> str:
-    safe_name = re.sub(r"[^A-Za-z0-9_\-\.]", "-", name or "")
-    return f'<a name="{safe_name}"></a>'
-
-def normalize_anchor(text: str) -> str:
-    base = (text or "").strip().lower()
-    base = re.sub(r"[^\w\s\.-]", "", base, flags=re.UNICODE)
-    base = re.sub(r"\s+", "-", base)
-    return base or "section"
 
 
 def download_jira_attachment(attachment):
@@ -283,12 +283,12 @@ def render_confluence_image_from_attachment(att):
     )
 
 
-def adf_to_html(adf, attachments=None, image_captions=None):
+def adf_to_html(adf, attachments=None, image_captions=None, demote_headings=False):
     if not adf:
         return ""
 
     if isinstance(adf, str):
-        return f"<p>{escape_html(adf)}</p>"
+        return f"<p style=\"{FONT_NORMAL}\">{escape_html(adf)}</p>"
 
     attachments = attachments or []
     image_captions = image_captions or []
@@ -314,7 +314,7 @@ def adf_to_html(adf, attachments=None, image_captions=None):
         caption_html = ""
         if idx < len(image_captions) and image_captions[idx]:
             caption_html = (
-                f'<p style="text-align:center; font-style:italic; margin-top:4px;">'
+                f'<p style="{FONT_CAPTION}">'
                 f'{escape_html(image_captions[idx])}'
                 f'</p>'
             )
@@ -333,7 +333,7 @@ def adf_to_html(adf, attachments=None, image_captions=None):
 
         if node_type == "paragraph":
             inner = "".join(render_node(child) for child in content).strip()
-            return f"<p>{inner}</p>" if inner else ""
+            return f'<p style="{FONT_NORMAL}">{inner}</p>' if inner else ""
 
         if node_type == "text":
             text = escape_html(node.get("text", ""))
@@ -362,18 +362,22 @@ def adf_to_html(adf, attachments=None, image_captions=None):
             return "<br/>"
 
         if node_type == "heading":
+            inner = "".join(render_node(child) for child in content).strip()
+            inner = re.sub(r'^<p[^>]*>|</p>$', "", inner)
+            if demote_headings:
+                return f'<p style="{FONT_SUBSECTION}">{inner}</p>' if inner else ""
             level = node.get("attrs", {}).get("level", 1)
             level = min(max(level, 1), 6)
-            inner = "".join(render_node(child) for child in content)
-            return f"<h{level}>{inner}</h{level}>"
+            style = FONT_SUBSECTION if level >= 2 else FONT_SECTION
+            return f'<h{level} style="{style}">{inner}</h{level}>'
 
         if node_type == "orderedList":
             inner = "".join(render_node(child) for child in content)
-            return f"<ol>{inner}</ol>"
+            return f'<ol style="{FONT_NORMAL}">{inner}</ol>'
 
         if node_type == "bulletList":
             inner = "".join(render_node(child) for child in content)
-            return f"<ul>{inner}</ul>"
+            return f'<ul style="{FONT_NORMAL}">{inner}</ul>'
 
         if node_type == "listItem":
             inner = "".join(render_node(child) for child in content)
@@ -381,7 +385,7 @@ def adf_to_html(adf, attachments=None, image_captions=None):
 
         if node_type == "blockquote":
             inner = "".join(render_node(child) for child in content)
-            return f"<blockquote>{inner}</blockquote>"
+            return f'<blockquote style="{FONT_NORMAL}">{inner}</blockquote>'
 
         if node_type == "rule":
             return "<hr/>"
@@ -413,10 +417,6 @@ def clean_req(summary: str) -> str:
 def strip_tags(text: str) -> str:
     text = re.sub(r"<[^>]+>", "", text or "")
     return html_lib.unescape(text).strip()
-
-
-def normalize_text(value: str) -> str:
-    return re.sub(r"\s+", " ", (value or "")).strip()
 
 
 def summarize_issue(snapshot_item):
@@ -548,14 +548,14 @@ def build_revision_history_html(existing_rows, author: str, new_version: str, ch
         )
 
     return (
-        make_bookmark("revision-history") + "<h1>Revision History</h1>"
-        '<table border="1" style="border-collapse:collapse; width:100%;">'
+        f'<h1 style="{FONT_SECTION}">Revision History</h1>'
+        f'<table border="1" style="border-collapse:collapse; width:100%; {FONT_NORMAL}">'
         "<thead>"
         "<tr>"
-        "<th>Version</th>"
-        "<th>Date</th>"
-        "<th>Author</th>"
-        "<th>Modification</th>"
+        f'<th style="{FONT_SUBSECTION}">Version</th>'
+        f'<th style="{FONT_SUBSECTION}">Date</th>'
+        f'<th style="{FONT_SUBSECTION}">Author</th>'
+        f'<th style="{FONT_SUBSECTION}">Modification</th>'
         "</tr>"
         "</thead>"
         "<tbody>"
@@ -632,12 +632,13 @@ def build_requirement_html(req, figure_caption=None):
 
     log(f"build_requirement_html - processing requirement {req_key} - {req_title}")
 
-    html_parts = [f"<h3>{escape_html(full_title)}</h3>"]
+    html_parts = [f'<h3 style="{FONT_SUBSECTION}">{escape_html(full_title)}</h3>']
 
     req_description_html = adf_to_html(
         rf.get("description"),
         attachments=rf.get("attachment", []),
-        image_captions=[figure_caption] if figure_caption else []
+        image_captions=[figure_caption] if figure_caption else [],
+        demote_headings=True
     )
 
     if req_description_html.strip():
@@ -647,11 +648,11 @@ def build_requirement_html(req, figure_caption=None):
 
 
 def build_document_header_html():
-    return """
+    return f"""
     <div style="text-align:center; margin-bottom:30px;">
-        <h1 style="color:#163A70; margin-bottom:12px;">Industrial Property Rights</h1>
+        <h1 style="{FONT_SECTION} margin-bottom:12px;">Industrial Property Rights</h1>
 
-        <p style="font-size:12px; max-width:900px; margin:0 auto 24px auto; line-height:1.5;">
+        <p style="{FONT_NORMAL} max-width:900px; margin:0 auto 24px auto;">
             The information in this document is iDAKTO France Proprietary Information and is Confidential.
             It is the property of iDAKTO Identity &amp; Security France and shall not be used, disclosed to others,
             or reproduced without the express written consent of iDAKTO France. The information contained in this
@@ -659,13 +660,13 @@ def build_document_header_html():
             This constraint applies to all pages of this document.
         </p>
 
-        <h1 style="color:#163A70; margin-bottom:16px;">Distribution List</h1>
+        <h1 style="{FONT_SECTION} margin-bottom:16px;">Distribution List</h1>
 
-        <table style="border-collapse:collapse; margin:0 auto; width:420px; font-size:12px;">
+        <table style="border-collapse:collapse; margin:0 auto; width:420px; {FONT_NORMAL}">
             <thead>
                 <tr>
-                    <th style="border:1px solid #000; background-color:#163A70; color:#fff; padding:6px;">Name</th>
-                    <th style="border:1px solid #000; background-color:#163A70; color:#fff; padding:6px;">Company</th>
+                    <th style="border:1px solid #000; background-color:#163A70; color:#fff; padding:6px; {FONT_SUBSECTION}">Name</th>
+                    <th style="border:1px solid #000; background-color:#163A70; color:#fff; padding:6px; {FONT_SUBSECTION}">Company</th>
                 </tr>
             </thead>
             <tbody>
@@ -685,41 +686,36 @@ def build_document_header_html():
 
 
 def build_list_of_figures_html(regular_use_cases):
-    html_parts = [make_bookmark("list-of-figures"), "<h1>List of Figures</h1>"]
+    html_parts = [f'<h1 style="{FONT_SECTION}">List of Figures</h1>']
 
     for index, use_case in enumerate(regular_use_cases, start=1):
         title = use_case["fields"].get("summary", "") or ""
-        figure_anchor = f"figure-{index}"
-        html_parts.append(
-            f'<p><a href="#{figure_anchor}">Figure {index} - {escape_html(title)}</a></p>'
-        )
+        html_parts.append(f'<p style="{FONT_NORMAL}">Figure {index} - {escape_html(title)}</p>')
 
     html_parts.append("<hr/>")
     return "\n".join(html_parts)
 
 
 def build_table_of_contents_html(regular_use_cases):
-    html_parts = [make_bookmark("table-of-contents"), "<h1>Table of Contents</h1>", "<ul>"]
+    html_parts = [f'<h1 style="{FONT_SECTION}">Table of Contents</h1>', f'<ul style="{FONT_NORMAL}">']
 
-    html_parts.append("<li><a href='#revision-history'>Revision History</a></li>")
-    html_parts.append("<li><a href='#list-of-figures'>List of Figures</a></li>")
-
-    html_parts.append("<li><a href='#introduction-section'>1. Introduction</a><ul>")
-    html_parts.append("<li><a href='#introduction-1-1'>1.1 Introduction</a></li>")
-    html_parts.append("<li><a href='#introduction-1-2'>1.2 Purpose of the document</a></li>")
-    html_parts.append("<li><a href='#introduction-1-3'>1.3 Reference Document</a></li>")
+    html_parts.append("<li>Revision History</li>")
+    html_parts.append("<li>List of Figures</li>")
+    html_parts.append("<li>1. Introduction<ul>")
+    html_parts.append("<li>1.1 Introduction</li>")
+    html_parts.append("<li>1.2 Purpose of the document</li>")
+    html_parts.append("<li>1.3 Reference Document</li>")
     html_parts.append("</ul></li>")
 
-    html_parts.append("<li><a href='#general-requirements-section'>2. Exigences Générales</a><ul>")
-    html_parts.append("<li><a href='#general-requirements-description'>2.1 Description</a></li>")
-    html_parts.append("<li><a href='#general-requirements-list'>2.2 Requirements</a></li>")
+    html_parts.append("<li>2. Exigences Générales<ul>")
+    html_parts.append("<li>2.1 Description</li>")
+    html_parts.append("<li>2.2 Requirements</li>")
     html_parts.append("</ul></li>")
 
-    html_parts.append("<li><a href='#use-cases-section'>3. Use Cases</a><ul>")
+    html_parts.append("<li>3. Use Cases<ul>")
     for index, use_case in enumerate(regular_use_cases, start=1):
-        anchor = f"use-case-{index}"
         title = use_case["fields"].get("summary", "") or ""
-        html_parts.append(f"<li><a href='#{anchor}'>3.{index} {escape_html(title)}</a></li>")
+        html_parts.append(f"<li>3.{index} {escape_html(title)}</li>")
     html_parts.append("</ul></li>")
 
     html_parts.append("</ul>")
@@ -729,44 +725,41 @@ def build_table_of_contents_html(regular_use_cases):
 
 
 def build_introduction_html():
-    return """
-    """ + make_bookmark("introduction-section") + """
-    <h1>1. Introduction</h1>
+    return f"""
+    <h1 style="{FONT_SECTION}">1. Introduction</h1>
 
-    """ + make_bookmark("introduction-1-1") + """
-    <h2>1.1 Introduction</h2>
+    <h2 style="{FONT_SUBSECTION}">1.1 Introduction</h2>
 
-    <p>
+    <p style="{FONT_NORMAL}">
         This document outlines the database model for a Digital ID solution designed to securely
         store and manage user identity information. The primary purpose of this database is to
         facilitate the verification and authentication of individual identities while ensuring
         compliance with relevant regulations.
     </p>
 
-    <p>
+    <p style="{FONT_NORMAL}">
         Through a structured approach, this database model will define the necessary entities,
         relationships, and data constraints needed to create a robust and efficient system.
         By leveraging this model, the Digital ID solution aims to provide a seamless user
         experience, enhance security, and support scalability as user demands grow.
     </p>
 
-    """ + make_bookmark("introduction-1-2") + """
-    <h2>1.2 Purpose of the document</h2>
+    <h2 style="{FONT_SUBSECTION}">1.2 Purpose of the document</h2>
 
-    <p>
+    <p style="{FONT_NORMAL}">
         The purpose of this document is to outline the database model solution for Digital ID.
         This document serves as a comprehensive guide that details the design, structure,
         and implementation of the database system to support the functionalities required by
         Digital ID.
     </p>
 
-    <p>
+    <p style="{FONT_NORMAL}">
         The scope of this database model encompasses the identification of entities and their
         relationships, normalization of data to reduce redundancy, and the establishment of a
         robust schema that ensures data integrity and optimal performance.
     </p>
 
-    <p>
+    <p style="{FONT_NORMAL}">
         Throughout this document, we will provide insights into the requirements that guided the
         design process, along with detailed tables that reflect the database structure. By adhering
         to best practices in database design, this document aims to lay the groundwork for a
@@ -774,21 +767,20 @@ def build_introduction_html():
         needs of the Digital ID project.
     </p>
 
-    """ + make_bookmark("introduction-1-3") + """
-    <h2>1.3 Reference Document</h2>
+    <h2 style="{FONT_SUBSECTION}">1.3 Reference Document</h2>
 
-    <p>
+    <p style="{FONT_NORMAL}">
         This section presents all reference documents used to build this document.
     </p>
 
-    <table style="border-collapse:collapse; width:100%; font-size:12px;">
+    <table style="border-collapse:collapse; width:100%; {FONT_NORMAL}">
         <thead>
             <tr>
-                <th style="border:1px solid #000; padding:6px;">Id</th>
-                <th style="border:1px solid #000; padding:6px;">Document Name</th>
-                <th style="border:1px solid #000; padding:6px;">Release</th>
-                <th style="border:1px solid #000; padding:6px;">Date</th>
-                <th style="border:1px solid #000; padding:6px;">Reference</th>
+                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Id</th>
+                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Document Name</th>
+                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Release</th>
+                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Date</th>
+                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Reference</th>
             </tr>
         </thead>
         <tbody>
@@ -841,12 +833,6 @@ def extract_requirement_sort_key(req):
 def build_html(use_cases, reqs_by_uc):
     html_parts = []
 
-    page_break = """
-    <p style="page-break-before: always; mso-page-break-before: always; margin:0;">
-        <span style="mso-special-character: page-break;"></span>
-    </p>
-    """
-
     use_cases = sorted(
         use_cases,
         key=lambda x: extract_use_case_sort_key(
@@ -866,7 +852,7 @@ def build_html(use_cases, reqs_by_uc):
             regular_use_cases.append(use_case)
 
     if general_use_case:
-        html_parts.append(page_break)
+        html_parts.append(PAGE_BREAK)
 
         uc_key = general_use_case["key"]
         uf = general_use_case["fields"]
@@ -875,30 +861,26 @@ def build_html(use_cases, reqs_by_uc):
 
         log(f"build_html - processing general section {uc_key} with {len(requirements)} requirements")
 
-        html_parts.append(make_bookmark("general-requirements-section"))
-        html_parts.append(f"<h1>2. {escape_html(uf.get('summary', ''))}</h1>")
+        html_parts.append(f'<h1 style="{FONT_SECTION}">2. {escape_html(uf.get("summary", ""))}</h1>')
 
-        use_case_description_html = adf_to_html(uf.get("description"))
+        use_case_description_html = adf_to_html(uf.get("description"), demote_headings=False)
         if use_case_description_html.strip():
-            html_parts.append(make_bookmark("general-requirements-description"))
-            html_parts.append("<h2>2.1 Description</h2>")
+            html_parts.append(f'<h2 style="{FONT_SUBSECTION}">2.1 Description</h2>')
             html_parts.append(use_case_description_html)
 
         if requirements:
-            html_parts.append(make_bookmark("general-requirements-list"))
-            html_parts.append("<h2>2.2 Requirements</h2>")
+            html_parts.append(f'<h2 style="{FONT_SUBSECTION}">2.2 Requirements</h2>')
             for req in requirements:
                 html_parts.append(build_requirement_html(req))
 
         html_parts.append("<hr/>")
 
     if regular_use_cases:
-        html_parts.append(page_break)
-        html_parts.append(make_bookmark("use-cases-section"))
-        html_parts.append("<h1>3. Use Cases</h1>")
+        html_parts.append(PAGE_BREAK)
+        html_parts.append(f'<h1 style="{FONT_SECTION}">3. Use Cases</h1>')
 
         for index, use_case in enumerate(regular_use_cases, start=1):
-            html_parts.append(page_break)
+            html_parts.append(PAGE_BREAK)
 
             uc_key = use_case["key"]
             uf = use_case["fields"]
@@ -911,14 +893,13 @@ def build_html(use_cases, reqs_by_uc):
 
             log(f"build_html - processing use case {uc_key} as section {section_number} with {len(requirements)} requirements")
 
-            html_parts.append(make_bookmark(f"use-case-{index}"))
-            html_parts.append(f"<h2>{section_number} {escape_html(use_case_title)}</h2>")
+            html_parts.append(
+                f'<h2 style="{FONT_SUBSECTION}">{section_number} {escape_html(use_case_title)}</h2>'
+            )
 
             if requirements:
                 first_req = True
                 for req in requirements:
-                    if first_req:
-                        html_parts.append(make_bookmark(f"figure-{index}"))
                     html_parts.append(
                         build_requirement_html(
                             req,
@@ -952,10 +933,10 @@ def detect_changes(old_snapshot, new_snapshot):
 
         diffs = []
 
-        if normalize_text(old.get("summary")) != normalize_text(new.get("summary")):
+        if old.get("summary", "").strip() != new.get("summary", "").strip():
             diffs.append("summary updated")
 
-        if normalize_text(old.get("description")) != normalize_text(new.get("description")):
+        if old.get("description", "").strip() != new.get("description", "").strip():
             diffs.append("description updated")
 
         if old.get("parent_key") != new.get("parent_key"):
@@ -988,7 +969,6 @@ def generate_ssd(author: str):
 
         if issue_type == "Use Case":
             use_cases.append(issue)
-
         elif issue_type == "Requirement":
             parent = fields.get("parent")
             if parent and parent.get("key"):
@@ -1054,22 +1034,18 @@ def generate_ssd(author: str):
     introduction_html = build_introduction_html()
     content_html = build_html(use_cases, reqs_by_uc)
 
-    page_break = """
-    <p style="page-break-before: always; mso-page-break-before: always; margin:0;">
-        <span style="mso-special-character: page-break;"></span>
-    </p>
+    full_html = f"""
+    <div style="{FONT_NORMAL}">
+        {document_header_html}
+        {PAGE_BREAK}
+        {revision_html}
+        {list_of_figures_html}
+        {toc_html}
+        {PAGE_BREAK}
+        {introduction_html}
+        {content_html}
+    </div>
     """
-
-    full_html = (
-        document_header_html +
-        page_break +
-        revision_html +
-        list_of_figures_html +
-        toc_html +
-        page_break +
-        introduction_html +
-        content_html
-    )
 
     updated = update_confluence_page(
         page["title"],
