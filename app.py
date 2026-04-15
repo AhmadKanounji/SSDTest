@@ -32,6 +32,7 @@ FONT_SECTION = "font-family: Arial; font-weight: bold; font-size: 14pt;"
 FONT_SUBSECTION = "font-family: Arial; font-weight: bold; font-size: 10pt;"
 FONT_NORMAL = "font-family: 'Arial MT', Arial; font-size: 9pt; line-height: 1.4;"
 FONT_CAPTION = "text-align:center; font-style:italic; font-family: 'Arial MT', Arial; font-size: 9pt; line-height: 1.3;"
+FONT_DOC_CONTROL = "font-family: 'Arial MT', Arial; font-size: 8pt; line-height: 1.25;"
 
 # Pre-section main titles before section 1
 FONT_PREINTRO_TITLE = f"font-family: 'Arial MT', Arial; font-weight: normal; font-size: 20.5pt; color: {PURPLE}; text-align:center;"
@@ -473,7 +474,7 @@ def extract_existing_revision_rows(existing_html: str):
         return []
 
     match = re.search(
-        r"<h1>\s*Revision History\s*</h1>\s*(<table\b.*?</table>)",
+        r"<h1[^>]*>\s*Revision History\s*</h1>\s*(<table\b.*?</table>)",
         existing_html,
         flags=re.DOTALL | re.IGNORECASE
     )
@@ -671,7 +672,7 @@ def build_document_header_html():
 
         <h1 style="{FONT_PREINTRO_TITLE} margin-bottom:16px;">Document Control</h1>
 
-        <table style="border-collapse:collapse; margin:0 auto 24px auto; width:100%; {FONT_NORMAL}">
+        <table style="border-collapse:collapse; margin:0 auto 20px auto; width:85%; {FONT_DOC_CONTROL}">
             <thead>
                 <tr>
                     <th style="{TABLE_HEADER_STYLE}">Validated by</th>
@@ -680,44 +681,24 @@ def build_document_header_html():
             </thead>
             <tbody>
                 <tr>
-                    <td style="border:1px solid #000; padding:6px;">
-                        Name: Fadi NASSAR<br/>
-                        Position: Program Manager<br/>
-                        Company: IDEMIA
-                    </td>
-                    <td style="border:1px solid #000; padding:6px;">22/04/2024</td>
+                    <td style="border:1px solid #000; padding:5px; height:40px;">&nbsp;</td>
+                    <td style="border:1px solid #000; padding:5px;">&nbsp;</td>
                 </tr>
                 <tr>
-                    <td style="border:1px solid #000; padding:6px;">
-                        Name: Ulrich NDJAYE<br/>
-                        Position: Project Manager<br/>
-                        Company: IDEMIA
-                    </td>
-                    <td style="border:1px solid #000; padding:6px;">22/04/2024</td>
+                    <td style="border:1px solid #000; padding:5px; height:40px;">&nbsp;</td>
+                    <td style="border:1px solid #000; padding:5px;">&nbsp;</td>
                 </tr>
                 <tr>
-                    <td style="border:1px solid #000; padding:6px;">
-                        Name: Pierre ALMERAS<br/>
-                        Position: Solution Architect<br/>
-                        Company: IDEMIA
-                    </td>
-                    <td style="border:1px solid #000; padding:6px;">22/04/2024</td>
+                    <td style="border:1px solid #000; padding:5px; height:40px;">&nbsp;</td>
+                    <td style="border:1px solid #000; padding:5px;">&nbsp;</td>
                 </tr>
                 <tr>
-                    <td style="border:1px solid #000; padding:6px;">
-                        Name: Amine CHOKAIRI / Eman ABDO<br/>
-                        Position: Business Analyst<br/>
-                        Company: IDEMIA
-                    </td>
-                    <td style="border:1px solid #000; padding:6px;">22/04/2024</td>
+                    <td style="border:1px solid #000; padding:5px; height:40px;">&nbsp;</td>
+                    <td style="border:1px solid #000; padding:5px;">&nbsp;</td>
                 </tr>
                 <tr>
-                    <td style="border:1px solid #000; padding:6px;">
-                        Name: Kamal Mrad<br/>
-                        Position: Project Director<br/>
-                        Company: IDEMIA
-                    </td>
-                    <td style="border:1px solid #000; padding:6px;">05/07/2024</td>
+                    <td style="border:1px solid #000; padding:5px; height:40px;">&nbsp;</td>
+                    <td style="border:1px solid #000; padding:5px;">&nbsp;</td>
                 </tr>
             </tbody>
         </table>
