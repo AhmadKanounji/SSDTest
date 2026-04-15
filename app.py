@@ -1043,11 +1043,16 @@ def generate_ssd(author: str):
     content_html = build_html(use_cases, reqs_by_uc)
     introduction_html = build_introduction_html()
 
+    page_break = '<div style="page-break-before: always;"></div>'
+
     full_html = (
-    document_header_html +
-    revision_html +
-    introduction_html +
-    content_html
+        document_header_html +
+        page_break +
+        revision_html +
+        page_break +
+        introduction_html +
+        page_break +
+        content_html
     )
 
     updated = update_confluence_page(
