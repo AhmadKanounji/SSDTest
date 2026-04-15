@@ -861,6 +861,8 @@ def build_html(use_cases, reqs_by_uc):
 
     # Section 2 - Exigences Générales
     if general_use_case:
+        html_parts.append('<div style="page-break-before: always;"></div>')
+
         uc_key = general_use_case["key"]
         uf = general_use_case["fields"]
         requirements = reqs_by_uc.get(uc_key, [])
@@ -870,22 +872,14 @@ def build_html(use_cases, reqs_by_uc):
 
         html_parts.append(f"<h1>2. {escape_html(uf.get('summary', ''))}</h1>")
 
-        png_req = None
-        other_reqs = []
+        use_case_description_html = adf_to_html(uf.get("description"))
+        if use_case_description_html.strip():
+            html_parts.append("<h2>2.1 Description</h2>")
+            html_parts.append(use_case_description_html)
 
-        for req in requirements:
-            if png_req is None and has_png_attachment(req):
-                png_req = req
-            else:
-                other_reqs.append(req)
-
-        if png_req:
-            log(f"build_html - general section {uc_key} has diagram requirement {png_req.get('key', 'UNKNOWN')}")
-            html_parts.append(build_requirement_html(png_req))
-
-        if other_reqs:
+        if requirements:
             html_parts.append("<h2>2.2 Requirements</h2>")
-            for req in other_reqs:
+            for req in requirements:
                 html_parts.append(build_requirement_html(req))
 
         html_parts.append("<hr/>")
@@ -896,6 +890,8 @@ def build_html(use_cases, reqs_by_uc):
         html_parts.append("<h1>3. Use Cases</h1>")
 
         for index, use_case in enumerate(regular_use_cases, start=1):
+            html_parts.append('<div style="page-break-before: always;"></div>')
+
             uc_key = use_case["key"]
             uf = use_case["fields"]
             requirements = reqs_by_uc.get(uc_key, [])
@@ -907,31 +903,8 @@ def build_html(use_cases, reqs_by_uc):
 
             html_parts.append(f"<h2>{section_number} {escape_html(uf.get('summary', ''))}</h2>")
 
-            png_req = None
-            other_reqs = []
-
             for req in requirements:
-                if png_req is None and has_png_attachment(req):
-                    png_req = req
-                else:
-                    other_reqs.append(req)
-
-            if png_req:
-                log(f"build_html - use case {uc_key} has diagram requirement {png_req.get('key', 'UNKNOWN')}")
-                html_parts.append(build_requirement_html(png_req))
-
-            use_case_description_html = adf_to_html(
-                uf.get("description"),
-                attachments=uf.get("attachment", [])
-            )
-            if use_case_description_html.strip():
-                html_parts.append(f"<h3>{section_number}.1 Description</h3>")
-                html_parts.append(use_case_description_html)
-
-            if other_reqs:
-                html_parts.append(f"<h3>{section_number}.2 Requirements</h3>")
-                for req in other_reqs:
-                    html_parts.append(build_requirement_html(req))
+                html_parts.append(build_requirement_html(req))
 
             html_parts.append("<hr/>")
 
