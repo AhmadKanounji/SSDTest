@@ -729,69 +729,86 @@ def build_table_of_contents_html(regular_use_cases):
 
 def build_introduction_html():
     return f"""
-    <h1 style="{FONT_SECTION}">1. Introduction</h1>
+    <h1 style="{FONT_SECTION}">2. Introduction</h1>
 
-    <h2 style="{FONT_SUBSECTION}">1.1 Introduction</h2>
+    <h2 style="{FONT_SUBSECTION}">2.1 Document Overview</h2>
+
+    <h3 style="{FONT_SUBSECTION}">2.1.1 Purpose of the Document</h3>
 
     <p style="{FONT_NORMAL}">
-        This document outlines the database model for a Digital ID solution designed to securely
-        store and manage user identity information. The primary purpose of this database is to
-        facilitate the verification and authentication of individual identities while ensuring
-        compliance with relevant regulations.
+    This IDEMIA System Specification Document is dedicated to the eKYC project.
+    The objective of this document is to give an overview of the system by:
+    </p>
+
+    <ul style="{FONT_NORMAL}">
+        <li>Defining the perimeter of the system: what is in and out,</li>
+        <li>Describing the system interactions with its environment to satisfy customer’s needs,</li>
+        <li>Aligning stakeholders and system team on a shared vision.</li>
+    </ul>
+
+    <p style="{FONT_NORMAL}">
+    For these purposes, all along the document, we:
+    </p>
+
+    <ul style="{FONT_NORMAL}">
+        <li>Identify the main stakeholders and external systems, and their expectations,</li>
+        <li>Describe the main expected operational modes of the system,</li>
+        <li>Describe the interactions of the system with its environment,</li>
+        <li>Describe the use cases of the system,</li>
+        <li>Identify the properties of business data exchanged with its environment.</li>
+    </ul>
+
+    <h3 style="{FONT_SUBSECTION}">2.1.2 Distribution and access</h3>
+
+    <p style="{FONT_NORMAL}">
+    This document is delivered by IDEMIA to the customer for the system functional
+    and non-functional requirements review and approval. It will then serve as the
+    reference document for system development.
     </p>
 
     <p style="{FONT_NORMAL}">
-        Through a structured approach, this database model will define the necessary entities,
-        relationships, and data constraints needed to create a robust and efficient system.
-        By leveraging this model, the Digital ID solution aims to provide a seamless user
-        experience, enhance security, and support scalability as user demands grow.
+    The scope of the current document is based on the customer's requirements written
+    in the annexes of the contract.
     </p>
 
-    <h2 style="{FONT_SUBSECTION}">1.2 Purpose of the document</h2>
+    <h2 style="{FONT_SUBSECTION}">2.2 Reference Documents</h2>
 
     <p style="{FONT_NORMAL}">
-        The purpose of this document is to outline the database model solution for Digital ID.
-        This document serves as a comprehensive guide that details the design, structure,
-        and implementation of the database system to support the functionalities required by
-        Digital ID.
+    This section presents all reference documents and meetings used to build this document.
     </p>
 
-    <p style="{FONT_NORMAL}">
-        The scope of this database model encompasses the identification of entities and their
-        relationships, normalization of data to reduce redundancy, and the establishment of a
-        robust schema that ensures data integrity and optimal performance.
-    </p>
-
-    <p style="{FONT_NORMAL}">
-        Throughout this document, we will provide insights into the requirements that guided the
-        design process, along with detailed tables that reflect the database structure. By adhering
-        to best practices in database design, this document aims to lay the groundwork for a
-        reliable, scalable, and maintainable database system that meets the current and future
-        needs of the Digital ID project.
-    </p>
-
-    <h2 style="{FONT_SUBSECTION}">1.3 Reference Document</h2>
-
-    <p style="{FONT_NORMAL}">
-        This section presents all reference documents used to build this document.
-    </p>
+    <h3 style="{FONT_SUBSECTION}">2.2.1 Product Reference Documents</h3>
 
     <table style="border-collapse:collapse; width:100%; {FONT_NORMAL}">
         <thead>
             <tr>
                 <th style="{TABLE_HEADER_STYLE}">Id</th>
-                <th style="{TABLE_HEADER_STYLE}">Document Name</th>
+                <th style="{TABLE_HEADER_STYLE}">Document or Meeting Name</th>
                 <th style="{TABLE_HEADER_STYLE}">Release</th>
                 <th style="{TABLE_HEADER_STYLE}">Date</th>
                 <th style="{TABLE_HEADER_STYLE}">Reference</th>
             </tr>
         </thead>
         <tbody>
-            <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td></tr>
-            <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td></tr>
-            <tr><td style="border:1px solid #000; padding:6px;">&nbsp;</td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td><td style="border:1px solid #000; padding:6px;"></td></tr>
+            <tr><td style="border:1px solid #000;">D1</td><td style="border:1px solid #000;">EKYC.doc</td><td style="border:1px solid #000;">9.3</td><td style="border:1px solid #000;">26/10/2021</td><td style="border:1px solid #000;"></td></tr>
+            <tr><td style="border:1px solid #000;">D2</td><td style="border:1px solid #000;">Idemia's Offer-CBE.pdf</td><td style="border:1px solid #000;">1-00</td><td style="border:1px solid #000;">24/05/2022</td><td style="border:1px solid #000;"></td></tr>
+            <tr><td style="border:1px solid #000;">D3</td><td style="border:1px solid #000;">CBE_eKYC_TCO.xlsx</td><td style="border:1px solid #000;">1.0</td><td style="border:1px solid #000;">20/07/2022</td><td style="border:1px solid #000;"></td></tr>
+            <tr><td style="border:1px solid #000;">D4</td><td style="border:1px solid #000;">Consolidated Gap Analysis Feedback.pdf</td><td style="border:1px solid #000;">NA</td><td style="border:1px solid #000;">01/04/2024</td><td style="border:1px solid #000;"></td></tr>
+            <tr><td style="border:1px solid #000;">M1</td><td style="border:1px solid #000;">Gap analysis Workshops session 1 & 2</td><td style="border:1px solid #000;">NA</td><td style="border:1px solid #000;">27/11/2023</td><td style="border:1px solid #000;"></td></tr>
+            <tr><td style="border:1px solid #000;">M2</td><td style="border:1px solid #000;">Gap analysis Workshops session 3 & 4</td><td style="border:1px solid #000;">NA</td><td style="border:1px solid #000;">28/12/2023</td><td style="border:1px solid #000;"></td></tr>
+            <tr><td style="border:1px solid #000;">M3</td><td style="border:1px solid #000;">Gap analysis review session 1</td><td style="border:1px solid #000;">NA</td><td style="border:1px solid #000;">16/01/2024</td><td style="border:1px solid #000;"></td></tr>
+            <tr><td style="border:1px solid #000;">M4</td><td style="border:1px solid #000;">Gap analysis review session 2</td><td style="border:1px solid #000;">NA</td><td style="border:1px solid #000;">18/01/2024</td><td style="border:1px solid #000;"></td></tr>
+            <tr><td style="border:1px solid #000;">M5</td><td style="border:1px solid #000;">Gap analysis review session 3</td><td style="border:1px solid #000;">NA</td><td style="border:1px solid #000;">21/01/2024</td><td style="border:1px solid #000;"></td></tr>
         </tbody>
     </table>
+
+    <p style="{FONT_CAPTION}">Table 3 – Product Reference Documents</p>
+
+    <h3 style="{FONT_SUBSECTION}">2.2.2 Conventions</h3>
+
+    <p style="{FONT_NORMAL}">
+    (To be completed)
+    </p>
 
     <hr/>
     """
