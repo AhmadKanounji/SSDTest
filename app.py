@@ -26,18 +26,12 @@ auth = HTTPBasicAuth(EMAIL, API_TOKEN)
 ATTACHMENT_CACHE = None
 REVISION_META_FILENAME = "ssd_revision_meta.json"
 
-PURPLE = "#7030A0"
-
 FONT_SECTION = "font-family: Arial; font-weight: bold; font-size: 14pt;"
 FONT_SUBSECTION = "font-family: Arial; font-weight: bold; font-size: 10pt;"
 FONT_NORMAL = "font-family: 'Arial MT', Arial; font-size: 9pt; line-height: 1.4;"
 FONT_CAPTION = "text-align:center; font-style:italic; font-family: 'Arial MT', Arial; font-size: 9pt; line-height: 1.3;"
-
-# Pre-section main titles before section 1
-FONT_PREINTRO_TITLE = f"font-family: 'Arial MT', Arial; font-weight: normal; font-size: 20.5pt; color: {PURPLE}; text-align:center;"
-
-TABLE_HEADER_STYLE = f"background-color:{PURPLE}; color:#FFFFFF; border:1px solid #000; padding:6px; {FONT_SUBSECTION}"
-
+PURPLE = "#7030A0"
+FONT_SECTION_PURPLE = f"font-family: Arial; font-weight: bold; font-size: 14pt; color: {PURPLE}; text-align:center;"
 PAGE_BREAK = """
 <p style="page-break-before: always; mso-page-break-before: always; margin:0;">
     <span style="mso-special-character: page-break;"></span>
@@ -284,9 +278,8 @@ def render_confluence_image_from_attachment(att):
     if not confluence_filename:
         return ""
 
-    # Better resolution: do not force width
     return (
-        f'<p><ac:image>'
+        f'<p><ac:image ac:width="900">'
         f'<ri:attachment ri:filename="{escape_html(confluence_filename)}" />'
         f'</ac:image></p>'
     )
@@ -557,14 +550,14 @@ def build_revision_history_html(existing_rows, author: str, new_version: str, ch
         )
 
     return (
-        f'<h1 style="{FONT_PREINTRO_TITLE}">Revision History</h1>'
+        f'<h1 style="{FONT_SECTION_PURPLE}">Revision History</h1>'
         f'<table border="1" style="border-collapse:collapse; width:100%; {FONT_NORMAL}">'
         "<thead>"
         "<tr>"
-        f'<th style="{TABLE_HEADER_STYLE}">Version</th>'
-        f'<th style="{TABLE_HEADER_STYLE}">Date</th>'
-        f'<th style="{TABLE_HEADER_STYLE}">Author</th>'
-        f'<th style="{TABLE_HEADER_STYLE}">Modification</th>'
+        f'<th style="{FONT_SUBSECTION}">Version</th>'
+        f'<th style="{FONT_SUBSECTION}">Date</th>'
+        f'<th style="{FONT_SUBSECTION}">Author</th>'
+        f'<th style="{FONT_SUBSECTION}">Modification</th>'
         "</tr>"
         "</thead>"
         "<tbody>"
@@ -659,7 +652,7 @@ def build_requirement_html(req, figure_caption=None):
 def build_document_header_html():
     return f"""
     <div style="text-align:center; margin-bottom:30px;">
-        <h1 style="{FONT_PREINTRO_TITLE} margin-bottom:12px;">Industrial Property Rights</h1>
+        <h1 style="{FONT_SECTION_PURPLE} margin-bottom:12px;">Industrial Property Rights</h1>
 
         <p style="{FONT_NORMAL} max-width:900px; margin:0 auto 24px auto;">
             The information in this document is iDAKTO France Proprietary Information and is Confidential.
@@ -669,66 +662,13 @@ def build_document_header_html():
             This constraint applies to all pages of this document.
         </p>
 
-        <h1 style="{FONT_PREINTRO_TITLE} margin-bottom:16px;">Document Control</h1>
-
-        <table style="border-collapse:collapse; margin:0 auto 24px auto; width:100%; {FONT_NORMAL}">
-            <thead>
-                <tr>
-                    <th style="{TABLE_HEADER_STYLE}">Validated by</th>
-                    <th style="{TABLE_HEADER_STYLE}">Date</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td style="border:1px solid #000; padding:6px;">
-                        Name: Fadi NASSAR<br/>
-                        Position: Program Manager<br/>
-                        Company: IDEMIA
-                    </td>
-                    <td style="border:1px solid #000; padding:6px;">22/04/2024</td>
-                </tr>
-                <tr>
-                    <td style="border:1px solid #000; padding:6px;">
-                        Name: Ulrich NDJAYE<br/>
-                        Position: Project Manager<br/>
-                        Company: IDEMIA
-                    </td>
-                    <td style="border:1px solid #000; padding:6px;">22/04/2024</td>
-                </tr>
-                <tr>
-                    <td style="border:1px solid #000; padding:6px;">
-                        Name: Pierre ALMERAS<br/>
-                        Position: Solution Architect<br/>
-                        Company: IDEMIA
-                    </td>
-                    <td style="border:1px solid #000; padding:6px;">22/04/2024</td>
-                </tr>
-                <tr>
-                    <td style="border:1px solid #000; padding:6px;">
-                        Name: Amine CHOKAIRI / Eman ABDO<br/>
-                        Position: Business Analyst<br/>
-                        Company: IDEMIA
-                    </td>
-                    <td style="border:1px solid #000; padding:6px;">22/04/2024</td>
-                </tr>
-                <tr>
-                    <td style="border:1px solid #000; padding:6px;">
-                        Name: Kamal Mrad<br/>
-                        Position: Project Director<br/>
-                        Company: IDEMIA
-                    </td>
-                    <td style="border:1px solid #000; padding:6px;">05/07/2024</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <h1 style="{FONT_PREINTRO_TITLE} margin-bottom:16px;">Distribution List</h1>
+        <h1 style="{FONT_SECTION_PURPLE} margin-bottom:16px;">Distribution List</h1>
 
         <table style="border-collapse:collapse; margin:0 auto; width:420px; {FONT_NORMAL}">
             <thead>
                 <tr>
-                    <th style="{TABLE_HEADER_STYLE}">Name</th>
-                    <th style="{TABLE_HEADER_STYLE}">Company</th>
+                    <th style="border:1px solid #000; background-color:#163A70; color:#fff; padding:6px; {FONT_SUBSECTION}">Name</th>
+                    <th style="border:1px solid #000; background-color:#163A70; color:#fff; padding:6px; {FONT_SUBSECTION}">Company</th>
                 </tr>
             </thead>
             <tbody>
@@ -748,7 +688,7 @@ def build_document_header_html():
 
 
 def build_list_of_figures_html(regular_use_cases):
-    html_parts = [f'<h1 style="{FONT_SECTION_PURPLE if "FONT_SECTION_PURPLE" in globals() else FONT_SECTION}">List of Figures</h1>']
+    html_parts = [f'<h1 style="{FONT_SECTION_PURPLE}">List of Figures</h1>']
 
     for index, use_case in enumerate(regular_use_cases, start=1):
         title = use_case["fields"].get("summary", "") or ""
@@ -759,7 +699,7 @@ def build_list_of_figures_html(regular_use_cases):
 
 
 def build_table_of_contents_html(regular_use_cases):
-    html_parts = [f'<h1 style="{FONT_SECTION_PURPLE if "FONT_SECTION_PURPLE" in globals() else FONT_SECTION}">Table of Contents</h1>', f'<ul style="{FONT_NORMAL}">']
+    html_parts = [f'<h1 style="{FONT_SECTION_PURPLE}">Table of Contents</h1>', f'<ul style="{FONT_NORMAL}">']
 
     html_parts.append("<li>Revision History</li>")
     html_parts.append("<li>List of Figures</li>")
@@ -784,9 +724,6 @@ def build_table_of_contents_html(regular_use_cases):
     html_parts.append("<hr/>")
 
     return "\n".join(html_parts)
-
-
-FONT_SECTION_PURPLE = f"font-family: Arial; font-weight: bold; font-size: 14pt; color: {PURPLE}; text-align:center;"
 
 
 def build_introduction_html():
@@ -841,11 +778,11 @@ def build_introduction_html():
     <table style="border-collapse:collapse; width:100%; {FONT_NORMAL}">
         <thead>
             <tr>
-                <th style="{TABLE_HEADER_STYLE}">Id</th>
-                <th style="{TABLE_HEADER_STYLE}">Document Name</th>
-                <th style="{TABLE_HEADER_STYLE}">Release</th>
-                <th style="{TABLE_HEADER_STYLE}">Date</th>
-                <th style="{TABLE_HEADER_STYLE}">Reference</th>
+                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Id</th>
+                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Document Name</th>
+                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Release</th>
+                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Date</th>
+                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Reference</th>
             </tr>
         </thead>
         <tbody>
