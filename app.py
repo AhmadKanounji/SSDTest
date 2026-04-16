@@ -32,6 +32,7 @@ FONT_NORMAL = "font-family: 'Arial MT', Arial; font-size: 9pt; line-height: 1.4;
 FONT_CAPTION = "text-align:center; font-style:italic; font-family: 'Arial MT', Arial; font-size: 9pt; line-height: 1.3;"
 PURPLE = "#7030A0"
 FONT_SECTION_PURPLE = f"font-family: Arial; font-weight: bold; font-size: 14pt; color: {PURPLE}; text-align:center;"
+TABLE_HEADER_STYLE = f"border:1px solid #000; background-color:{PURPLE}; color:#FFFFFF; padding:6px; {FONT_SUBSECTION}"
 PAGE_BREAK = """
 <p style="page-break-before: always; mso-page-break-before: always; margin:0;">
     <span style="mso-special-character: page-break;"></span>
@@ -554,10 +555,10 @@ def build_revision_history_html(existing_rows, author: str, new_version: str, ch
         f'<table border="1" style="border-collapse:collapse; width:100%; {FONT_NORMAL}">'
         "<thead>"
         "<tr>"
-        f'<th style="{FONT_SUBSECTION}">Version</th>'
-        f'<th style="{FONT_SUBSECTION}">Date</th>'
-        f'<th style="{FONT_SUBSECTION}">Author</th>'
-        f'<th style="{FONT_SUBSECTION}">Modification</th>'
+        f'<th style="{TABLE_HEADER_STYLE}">Version</th>'
+        f'<th style="{TABLE_HEADER_STYLE}">Date</th>'
+        f'<th style="{TABLE_HEADER_STYLE}">Author</th>'
+        f'<th style="{TABLE_HEADER_STYLE}">Modification</th>'
         "</tr>"
         "</thead>"
         "<tbody>"
@@ -667,8 +668,8 @@ def build_document_header_html():
         <table style="border-collapse:collapse; margin:0 auto; width:420px; {FONT_NORMAL}">
             <thead>
                 <tr>
-                    <th style="border:1px solid #000; background-color:#163A70; color:#fff; padding:6px; {FONT_SUBSECTION}">Name</th>
-                    <th style="border:1px solid #000; background-color:#163A70; color:#fff; padding:6px; {FONT_SUBSECTION}">Company</th>
+                    <th style="{TABLE_HEADER_STYLE}">Name</th>
+                    <th style="{TABLE_HEADER_STYLE}">Company</th>
                 </tr>
             </thead>
             <tbody>
@@ -778,11 +779,11 @@ def build_introduction_html():
     <table style="border-collapse:collapse; width:100%; {FONT_NORMAL}">
         <thead>
             <tr>
-                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Id</th>
-                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Document Name</th>
-                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Release</th>
-                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Date</th>
-                <th style="border:1px solid #000; padding:6px; {FONT_SUBSECTION}">Reference</th>
+                <th style="{TABLE_HEADER_STYLE}">Id</th>
+                <th style="{TABLE_HEADER_STYLE}">Document Name</th>
+                <th style="{TABLE_HEADER_STYLE}">Release</th>
+                <th style="{TABLE_HEADER_STYLE}">Date</th>
+                <th style="{TABLE_HEADER_STYLE}">Reference</th>
             </tr>
         </thead>
         <tbody>
