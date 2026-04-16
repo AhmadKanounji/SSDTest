@@ -780,27 +780,23 @@ def build_introduction_html():
     <h3 style="{FONT_SUBSECTION}">2.2.1 Product Reference Documents</h3>
 
     <table style="border-collapse:collapse; width:100%; {FONT_NORMAL}">
-        <thead>
-            <tr>
-                <th style="{TABLE_HEADER_STYLE}">Id</th>
-                <th style="{TABLE_HEADER_STYLE}">Document or Meeting Name</th>
-                <th style="{TABLE_HEADER_STYLE}">Release</th>
-                <th style="{TABLE_HEADER_STYLE}">Date</th>
-                <th style="{TABLE_HEADER_STYLE}">Reference</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr><td style="border:1px solid #000;">D1</td><td style="border:1px solid #000;">EKYC.doc</td><td style="border:1px solid #000;">9.3</td><td style="border:1px solid #000;">26/10/2021</td><td style="border:1px solid #000;"></td></tr>
-            <tr><td style="border:1px solid #000;">D2</td><td style="border:1px solid #000;">Idemia's Offer-CBE.pdf</td><td style="border:1px solid #000;">1-00</td><td style="border:1px solid #000;">24/05/2022</td><td style="border:1px solid #000;"></td></tr>
-            <tr><td style="border:1px solid #000;">D3</td><td style="border:1px solid #000;">CBE_eKYC_TCO.xlsx</td><td style="border:1px solid #000;">1.0</td><td style="border:1px solid #000;">20/07/2022</td><td style="border:1px solid #000;"></td></tr>
-            <tr><td style="border:1px solid #000;">D4</td><td style="border:1px solid #000;">Consolidated Gap Analysis Feedback.pdf</td><td style="border:1px solid #000;">NA</td><td style="border:1px solid #000;">01/04/2024</td><td style="border:1px solid #000;"></td></tr>
-            <tr><td style="border:1px solid #000;">M1</td><td style="border:1px solid #000;">Gap analysis Workshops session 1 & 2</td><td style="border:1px solid #000;">NA</td><td style="border:1px solid #000;">27/11/2023</td><td style="border:1px solid #000;"></td></tr>
-            <tr><td style="border:1px solid #000;">M2</td><td style="border:1px solid #000;">Gap analysis Workshops session 3 & 4</td><td style="border:1px solid #000;">NA</td><td style="border:1px solid #000;">28/12/2023</td><td style="border:1px solid #000;"></td></tr>
-            <tr><td style="border:1px solid #000;">M3</td><td style="border:1px solid #000;">Gap analysis review session 1</td><td style="border:1px solid #000;">NA</td><td style="border:1px solid #000;">16/01/2024</td><td style="border:1px solid #000;"></td></tr>
-            <tr><td style="border:1px solid #000;">M4</td><td style="border:1px solid #000;">Gap analysis review session 2</td><td style="border:1px solid #000;">NA</td><td style="border:1px solid #000;">18/01/2024</td><td style="border:1px solid #000;"></td></tr>
-            <tr><td style="border:1px solid #000;">M5</td><td style="border:1px solid #000;">Gap analysis review session 3</td><td style="border:1px solid #000;">NA</td><td style="border:1px solid #000;">21/01/2024</td><td style="border:1px solid #000;"></td></tr>
-        </tbody>
-    </table>
+    <thead>
+        <tr>
+            <th style="{TABLE_HEADER_STYLE}">Id</th>
+            <th style="{TABLE_HEADER_STYLE}">Document or Meeting Name</th>
+            <th style="{TABLE_HEADER_STYLE}">Release</th>
+            <th style="{TABLE_HEADER_STYLE}">Date</th>
+            <th style="{TABLE_HEADER_STYLE}">Reference</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td style="border:1px solid #000; height:30px;">&nbsp;</td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td></tr>
+        <tr><td style="border:1px solid #000; height:30px;">&nbsp;</td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td></tr>
+        <tr><td style="border:1px solid #000; height:30px;">&nbsp;</td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td></tr>
+        <tr><td style="border:1px solid #000; height:30px;">&nbsp;</td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td></tr>
+        <tr><td style="border:1px solid #000; height:30px;">&nbsp;</td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td></tr>
+    </tbody>
+</table>
 
     <p style="{FONT_CAPTION}">Table 3 – Product Reference Documents</p>
 
