@@ -26,6 +26,11 @@ auth = HTTPBasicAuth(EMAIL, API_TOKEN)
 ATTACHMENT_CACHE = None
 REVISION_META_FILENAME = "ssd_revision_meta.json"
 
+FONT_COVER_TITLE = "font-family: 'Aptos Display', Aptos, Arial; font-weight: bold; font-size: 28pt; text-align:center;"
+FONT_COVER_SUBTITLE_14 = "font-family: Arial; font-style: italic; font-size: 14pt; text-align:center;"
+FONT_COVER_SUBTITLE_11 = "font-family: Arial; font-style: italic; font-size: 11pt; text-align:center;"
+FONT_COVER_LABEL = "font-family: Arial; font-weight: bold; font-size: 8pt;"
+FONT_COVER_VALUE = "font-family: Arial; font-size: 8pt;"
 FONT_SECTION = "font-family: Arial; font-weight: bold; font-size: 14pt;"
 FONT_SUBSECTION = "font-family: Arial; font-weight: bold; font-size: 10pt;"
 FONT_NORMAL = "font-family: 'Arial MT', Arial; font-size: 9pt; line-height: 1.4;"
@@ -158,6 +163,13 @@ def escape_html(text: str) -> str:
         .replace(">", "&gt;")
     )
 
+def build_cover_info_line(label: str, value: str) -> str:
+    return (
+        '<p style="text-align:center; margin:10px 0;">'
+        f'<span style="{FONT_COVER_LABEL}">{escape_html(label)}</span> '
+        f'<span style="{FONT_COVER_VALUE}">{escape_html(value)}</span>'
+        '</p>'
+    )
 
 def download_jira_attachment(attachment):
     content_url = attachment.get("content")
@@ -650,9 +662,34 @@ def build_requirement_html(req, figure_caption=None):
     return "\n".join(html_parts)
 
 
-def build_document_header_html():
+def build_document_header_html(latest_version: str, latest_date: str):
+    document_reference_number = ""
+
+    info_lines = [
+        build_cover_info_line("Document Reference Number:", document_reference_number),
+        build_cover_info_line("Document Release Version:", latest_version),
+        build_cover_info_line("Document Release Date:", latest_date),
+    ]
+
     return f"""
     <div style="text-align:center; margin-bottom:30px;">
+
+        <div style="margin-top:40px; margin-bottom:60px;">
+            <h1 style="{FONT_COVER_TITLE} margin:0 0 60px 0;">Database Model Solution</h1>
+
+            <p style="{FONT_COVER_SUBTITLE_14} margin:0 0 50px 0;">
+                Digital Financial Identity (DFI)
+            </p>
+
+            <p style="{FONT_COVER_SUBTITLE_11} margin:0 0 60px 0;">
+                Electronically Know Your Customer (eKYC)
+            </p>
+
+            <div style="margin:0 auto; width:420px;">
+                {''.join(info_lines)}
+            </div>
+        </div>
+
         <h1 style="{FONT_SECTION_PURPLE} margin-bottom:12px;">Industrial Property Rights</h1>
 
         <p style="{FONT_NORMAL} max-width:900px; margin:0 auto 24px auto;">
@@ -1038,7 +1075,13 @@ def generate_ssd(author: str):
 
     new_revision_version = format_version(next_version_num)
 
-    document_header_html = build_document_header_html()
+    latest_version_for_cover = new_revision_version
+    latest_date_for_cover = datetime.now(ZoneInfo("Asia/Beirut")).strftime("%d/%m/%Y")
+
+    document_header_html = build_document_header_html(
+        latest_version=latest_version_for_cover,
+        latest_date=latest_date_for_cover,
+    )
     revision_html = build_revision_history_html(
         existing_rows=existing_rows,
         author=author,
