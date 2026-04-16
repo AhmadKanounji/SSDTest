@@ -467,7 +467,7 @@ def extract_existing_revision_rows(existing_html: str):
         return []
 
     match = re.search(
-        r"<h1>\s*Revision History\s*</h1>\s*(<table\b.*?</table>)",
+        r"<h1[^>]*>\s*Revision History\s*</h1>\s*(<table\b.*?</table>)",
         existing_html,
         flags=re.DOTALL | re.IGNORECASE
     )
