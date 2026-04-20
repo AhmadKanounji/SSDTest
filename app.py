@@ -262,7 +262,30 @@ def ensure_attachment_on_confluence(attachment):
 
 
 def render_confluence_image_from_attachment(att):
-    return ""
+    if not att:
+        return ""
+
+    mime = (att.get("mimeType") or "").lower()
+    filename = att.get("filename") or ""
+
+    is_image = mime.startswith("image/") or filename.lower().endswith(
+        (".png", ".jpg", ".jpeg", ".gif", ".webp")
+    )
+
+    if not is_image:
+        return ""
+
+    confluence_filename = ensure_attachment_on_confluence(att)
+    if not confluence_filename:
+        return ""
+
+    return (
+        f'<p>'
+        f'<ac:image ac:width="700" ac:layout="center">'
+        f'<ri:attachment ri:filename="{escape_html(confluence_filename)}" />'
+        f'</ac:image>'
+        f'</p>'
+    )
 
 def adf_to_html(adf, attachments=None, image_captions=None, demote_headings=False):
     if not adf:
