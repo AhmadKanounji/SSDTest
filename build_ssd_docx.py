@@ -301,34 +301,39 @@ def add_revision_history(doc, rows):
 
 def add_table_of_contents(doc):
     doc.add_page_break()
+    add_heading_1(doc, "Table of Contents")
 
-    # Title
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    run = p.add_run("Table of Contents")
-    set_run_font(run, name="Arial", size=14, bold=True)
-
-    # TOC field
     p = doc.add_paragraph()
 
+    # begin field
     run = p.add_run()
-    fldChar_begin = OxmlElement('w:fldChar')
-    fldChar_begin.set(qn('w:fldCharType'), 'begin')
+    fld_char_begin = OxmlElement("w:fldChar")
+    fld_char_begin.set(qn("w:fldCharType"), "begin")
+    run._r.append(fld_char_begin)
 
-    instrText = OxmlElement('w:instrText')
-    instrText.set(qn('xml:space'), 'preserve')
-    instrText.text = 'TOC \\o "1-3" \\h \\z \\u'
+    # instruction text
+    run = p.add_run()
+    instr_text = OxmlElement("w:instrText")
+    instr_text.set(qn("xml:space"), "preserve")
+    instr_text.text = r'TOC \o "1-3" \h \z \u'
+    run._r.append(instr_text)
 
-    fldChar_separate = OxmlElement('w:fldChar')
-    fldChar_separate.set(qn('w:fldCharType'), 'separate')
+    # separate
+    run = p.add_run()
+    fld_char_separate = OxmlElement("w:fldChar")
+    fld_char_separate.set(qn("w:fldCharType"), "separate")
+    run._r.append(fld_char_separate)
 
-    fldChar_end = OxmlElement('w:fldChar')
-    fldChar_end.set(qn('w:fldCharType'), 'end')
+    # placeholder text visible before update
+    run = p.add_run("Right-click and update field.")
+    set_run_font(run, name="Arial", size=9)
 
-    run._r.append(fldChar_begin)
-    run._r.append(instrText)
-    run._r.append(fldChar_separate)
-    run._r.append(fldChar_end)
+    # end field
+    run = p.add_run()
+    fld_char_end = OxmlElement("w:fldChar")
+    fld_char_end.set(qn("w:fldCharType"), "end")
+    run._r.append(fld_char_end)
+
 
 def main():
     template = Document(TEMPLATE_PATH)
