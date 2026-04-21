@@ -280,3 +280,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def build_ssd_docx(author: str) -> str:
+    main()
+    return OUTPUT_PATH
