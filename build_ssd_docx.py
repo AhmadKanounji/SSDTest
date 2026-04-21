@@ -161,11 +161,33 @@ def set_run_font(run, name="Arial", size=9, bold=False, italic=False):
 
 def add_body_text(doc, text):
     for block in [b.strip() for b in text.split("\n\n") if b.strip()]:
-        p = doc.add_paragraph(style="Normal")
+        p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         p.paragraph_format.space_after = Pt(4)
-        p.add_run(block)
 
+        run = p.add_run(block)
+        set_run_font(run, name="Arial", size=9)
+
+def add_heading_1(doc, text):
+    p = doc.add_paragraph()
+    run = p.add_run(text)
+    set_run_font(run, size=14, bold=True)
+    p.paragraph_format.space_after = Pt(8)
+    return p
+
+def add_heading_2(doc, text):
+    p = doc.add_paragraph()
+    run = p.add_run(text)
+    set_run_font(run, size=10, bold=True)
+    p.paragraph_format.space_after = Pt(6)
+    return p
+
+def add_heading_3(doc, text):
+    p = doc.add_paragraph()
+    run = p.add_run(text)
+    set_run_font(run, size=10, bold=True)
+    p.paragraph_format.space_after = Pt(4)
+    return p
 
 def add_cover_values(doc, version, date):
     # fill first page placeholder-like lines if present by appending values to the first three centered short paragraphs
@@ -225,8 +247,8 @@ def main():
             regular.append(uc)
 
     template.add_page_break()
-    template.add_paragraph("2. Introduction", style="Heading 1")
-    template.add_paragraph("2.1 Document Overview", style="Heading 2")
+    add_heading_1(template, "2. Introduction")
+    add_heading_2(template, "2.1 Document Overview")
     add_body_text(template, "This DOCX was generated directly from Jira for final delivery to preserve image quality and stable formatting.")
 
     if general:
@@ -240,7 +262,7 @@ def main():
         if greqs:
             template.add_paragraph("2.2 Requirements", style="Heading 2")
             for req in greqs:
-                template.add_paragraph(f'{req["key"]} - {req["fields"].get("summary","")}', style="Heading 3")
+                add_heading_3(template, f'{req["key"]} - {req["fields"].get("summary","")}')
                 add_body_text(template, adf_to_text(req["fields"].get("description")))
 
     template.add_page_break()
@@ -252,7 +274,7 @@ def main():
         reqs = sorted(reqs_by_uc.get(uc["key"], []), key=lambda r: (r["fields"].get("summary","").lower(), r["key"]))
         first = True
         for req in reqs:
-            template.add_paragraph(f'{req["key"]} - {req["fields"].get("summary","")}', style="Heading 3")
+            add_heading_3(template, f'{req["key"]} - {req["fields"].get("summary","")}')
             text = adf_to_text(req["fields"].get("description"))
             if text:
                 add_body_text(template, text)
@@ -263,8 +285,11 @@ def main():
                     image_paths.append(path)
                     try:
                         template.add_picture(path, width=Inches(5.7))
-                        cap = template.add_paragraph(style="Figure Caption")
-                        cap.add_run(f"Figure {i} - {uc['fields'].get('summary','')}")
+                        cap = template.add_paragraph()
+                        cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                        run = cap.add_run(f"Figure {i} - {uc['fields'].get('summary','')}")
+                        set_run_font(run, size=9, italic=True)
                     except Exception:
                         pass
             first = False
