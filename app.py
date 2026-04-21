@@ -7,7 +7,8 @@ from zoneinfo import ZoneInfo
 
 import requests
 from requests.auth import HTTPBasicAuth
-from flask import Flask, request
+from flask import Flask, request, send_file
+from build_ssd_docx import build_ssd_docx
 
 app = Flask(__name__)
 
@@ -1117,6 +1118,30 @@ def run():
         log(f"POST /generate-ssd failed: {repr(e)}")
         return {"status": "error", "message": str(e)}, 500
 
+
+@app.post("/generate-docx")
+def generate_docx():
+    try:
+        data = request.get_json(silent=True) or {}
+        author = data.get("author", EMAIL)
+
+        log("POST /generate-docx received")
+        log(f"Author = {author}")
+
+        file_path = build_ssd_docx(author=author)
+
+        log(f"POST /generate-docx completed successfully - file: {file_path}")
+
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name="SSD_Output.docx",
+            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+    except Exception as e:
+        log(f"POST /generate-docx failed: {repr(e)}")
+        return {"status": "error", "message": str(e)}, 500
 
 if __name__ == "__main__":
     log("Starting Flask app")
