@@ -281,7 +281,7 @@ def render_confluence_image_from_attachment(att):
 
     return (
         f'<p>'
-        f'<ac:image ac:width="700" ac:layout="center">'
+        f'<ac:image ac:width="800" ac:layout="center">'
         f'<ri:attachment ri:filename="{escape_html(confluence_filename)}" />'
         f'</ac:image>'
         f'</p>'
