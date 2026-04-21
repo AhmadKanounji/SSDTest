@@ -181,16 +181,6 @@ def add_body_text(doc, text):
         set_run_font(run, name="Arial", size=9)
 
 
-def add_heading_1(doc, text):
-    p = doc.add_paragraph(style="Heading 1")
-    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p.paragraph_format.space_after = Pt(8)
-    p.clear()
-    run = p.add_run(text)
-    set_run_font(run, name="Arial", size=14, bold=True)
-    return p
-
-
 def add_heading_2(doc, text):
     p = doc.add_paragraph(style="Heading 2")
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -222,7 +212,6 @@ def add_cover_values(doc, version, date):
         for label, value in replacements.items():
             if txt.startswith(label):
                 p.clear()
-                p.alignment = WD_ALIGN_PARAGRAPH.LEFT if ":" not in txt[:1] else p.alignment
                 run1 = p.add_run(label)
                 set_run_font(run1, size=8, bold=True)
                 if value:
@@ -330,14 +319,6 @@ def find_paragraph_index(doc, exact_text):
     return None
 
 
-def append_paragraph_after(doc, text="", style=None):
-    p = doc.add_paragraph(style=style)
-    if text:
-        run = p.add_run(text)
-        set_run_font(run, name="Arial", size=9)
-    return p
-
-
 def main():
     template = Document(TEMPLATE_PATH)
 
@@ -384,27 +365,21 @@ def main():
         else:
             regular.append(uc)
 
-    # Fill Exigences Générales content after the existing template headings
+    # Inject content only, no duplicated headings
     if general:
-        add_heading_1(template, "3. Exigences Générales")
         general_desc = adf_to_text(general["fields"].get("description"))
         if general_desc:
-            add_heading_2(template, "3.1 Description")
             add_body_text(template, general_desc)
 
         greqs = sorted(
             reqs_by_uc.get(general["key"], []),
             key=lambda r: (r["fields"].get("summary", "").lower(), r["key"])
         )
-        if greqs:
-            add_heading_2(template, "3.2 Requirements")
-            for req in greqs:
-                add_heading_3(template, f'{req["key"]} - {req["fields"].get("summary","")}')
-                add_body_text(template, adf_to_text(req["fields"].get("description")))
+        for req in greqs:
+            add_heading_3(template, f'{req["key"]} - {req["fields"].get("summary","")}')
+            add_body_text(template, adf_to_text(req["fields"].get("description")))
 
-    template.add_page_break()
-    add_heading_1(template, "4. Use Cases")
-
+    # Use Cases content only, no duplicated main section heading
     image_paths = []
     for i, uc in enumerate(regular, start=1):
         template.add_page_break()
