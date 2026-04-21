@@ -293,6 +293,36 @@ def add_revision_history(doc, rows):
         set_cell_text(cells[2], row.get("author", ""))
         set_cell_text(cells[3], row.get("modification", ""))
 
+def add_table_of_contents(doc):
+    doc.add_page_break()
+
+    # Title
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    run = p.add_run("Table of Contents")
+    set_run_font(run, name="Arial", size=14, bold=True)
+
+    # TOC field
+    p = doc.add_paragraph()
+
+    run = p.add_run()
+    fldChar_begin = OxmlElement('w:fldChar')
+    fldChar_begin.set(qn('w:fldCharType'), 'begin')
+
+    instrText = OxmlElement('w:instrText')
+    instrText.set(qn('xml:space'), 'preserve')
+    instrText.text = 'TOC \\o "1-3" \\h \\z \\u'
+
+    fldChar_separate = OxmlElement('w:fldChar')
+    fldChar_separate.set(qn('w:fldCharType'), 'separate')
+
+    fldChar_end = OxmlElement('w:fldChar')
+    fldChar_end.set(qn('w:fldCharType'), 'end')
+
+    run._r.append(fldChar_begin)
+    run._r.append(instrText)
+    run._r.append(fldChar_separate)
+    run._r.append(fldChar_end)
 
 def main():
     template = Document(TEMPLATE_PATH)
@@ -311,6 +341,7 @@ def main():
     style_distribution_list_table(template)
 
     add_revision_history(template, existing_rows)
+    add_table_of_contents(template)
 
     issues = jira_search(f'project = {PROJECT_KEY} AND issuetype in ("Use Case", Requirement)')
     use_cases = []
