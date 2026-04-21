@@ -91,6 +91,30 @@ def download_attachment(att):
     tmp.close()
     return tmp.name
 
+def style_distribution_list_table(doc):
+    if not doc.tables:
+        return
+
+    table = doc.tables[0]  # first table in template = Distribution List
+    table.style = "Table Grid"
+
+    # Header row
+    headers = ["Name", "Company"]
+    for i, header in enumerate(headers):
+        set_cell_background(table.rows[0].cells[i], PURPLE_HEX)
+        set_cell_text(
+            table.rows[0].cells[i],
+            header,
+            bold=True,
+            color=RGBColor(255, 255, 255),
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+        )
+
+    # Body rows
+    for row in table.rows[1:]:
+        for cell in row.cells:
+            text = cell.text.strip()
+            set_cell_text(cell, text, bold=False, align=WD_ALIGN_PARAGRAPH.LEFT)
 
 def extract_existing_revision_rows_from_confluence(page_html: str):
     match = re.search(
@@ -284,6 +308,7 @@ def main():
     today = datetime.now(ZoneInfo(TZ)).strftime("%d/%m/%Y")
     latest_version = existing_rows[0]["version"] if existing_rows else "0.1"
     add_cover_values(template, latest_version, today)
+    style_distribution_list_table(template)
 
     add_revision_history(template, existing_rows)
 
