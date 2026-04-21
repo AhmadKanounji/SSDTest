@@ -1,9 +1,6 @@
-
 import os
 import re
-import json
 import tempfile
-from io import BytesIO
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -11,7 +8,7 @@ from pathlib import Path
 import requests
 from requests.auth import HTTPBasicAuth
 from docx import Document
-from docx.shared import Inches, Pt, Cm
+from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 
@@ -153,20 +150,16 @@ def extract_use_case_sort_key(summary: str, fallback_key: str = ""):
 
 def set_run_font(run, name="Arial", size=9, bold=False, italic=False):
     run.font.name = name
-
-    # Force font for all Word rendering layers
-    r = run._element
-    rPr = r.get_or_add_rPr()
-    rFonts = rPr.get_or_add_rFonts()
-
-    rFonts.set(qn('w:ascii'), name)
-    rFonts.set(qn('w:hAnsi'), name)
-    rFonts.set(qn('w:eastAsia'), name)
-    rFonts.set(qn('w:cs'), name)
-
     run.font.size = Pt(size)
     run.bold = bold
     run.italic = italic
+
+    rPr = run._element.get_or_add_rPr()
+    rFonts = rPr.get_or_add_rFonts()
+    rFonts.set(qn("w:ascii"), name)
+    rFonts.set(qn("w:hAnsi"), name)
+    rFonts.set(qn("w:eastAsia"), name)
+    rFonts.set(qn("w:cs"), name)
 
 
 def add_body_text(doc, text):
@@ -174,33 +167,38 @@ def add_body_text(doc, text):
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         p.paragraph_format.space_after = Pt(4)
-
         run = p.add_run(block)
         set_run_font(run, name="Arial", size=9)
 
+
 def add_heading_1(doc, text):
     p = doc.add_paragraph()
-    run = p.add_run(text)
-    set_run_font(run, size=14, bold=True)
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.space_after = Pt(8)
+    run = p.add_run(text)
+    set_run_font(run, name="Arial", size=14, bold=True)
     return p
+
 
 def add_heading_2(doc, text):
     p = doc.add_paragraph()
-    run = p.add_run(text)
-    set_run_font(run, size=10, bold=True)
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.space_after = Pt(6)
+    run = p.add_run(text)
+    set_run_font(run, name="Arial", size=10, bold=True)
     return p
+
 
 def add_heading_3(doc, text):
     p = doc.add_paragraph()
-    run = p.add_run(text)
-    set_run_font(run, size=10, bold=True)
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.space_after = Pt(4)
+    run = p.add_run(text)
+    set_run_font(run, name="Arial", size=10, bold=True)
     return p
 
+
 def add_cover_values(doc, version, date):
-    # fill first page placeholder-like lines if present by appending values to the first three centered short paragraphs
     replacements = {
         "Document Reference Number:": "",
         "Document Release Version:": version,
@@ -221,22 +219,23 @@ def add_cover_values(doc, version, date):
 
 def main():
     template = Document(TEMPLATE_PATH)
-    # Keep template first pages, then append generated content
-    # Read version history from current Confluence page if provided
+
     page_id = os.environ.get("CONFLUENCE_PAGE_ID")
     existing_rows = []
     if page_id:
         page = get_confluence_page(page_id)
-        existing_rows = extract_existing_revision_rows_from_confluence(page.get("body", {}).get("storage", {}).get("value", ""))
+        existing_rows = extract_existing_revision_rows_from_confluence(
+            page.get("body", {}).get("storage", {}).get("value", "")
+        )
 
     today = datetime.now(ZoneInfo(TZ)).strftime("%d/%m/%Y")
     latest_version = existing_rows[0]["version"] if existing_rows else "0.1"
     add_cover_values(template, latest_version, today)
 
-    # Append generated content
     issues = jira_search(f'project = {PROJECT_KEY} AND issuetype in ("Use Case", Requirement)')
     use_cases = []
     reqs_by_uc = {}
+
     for issue in issues:
         issue_type = issue["fields"]["issuetype"]["name"]
         if issue_type == "Use Case":
@@ -246,7 +245,11 @@ def main():
             if parent and parent.get("key"):
                 reqs_by_uc.setdefault(parent["key"], []).append(issue)
 
-    use_cases = sorted(use_cases, key=lambda x: extract_use_case_sort_key(x["fields"].get("summary", ""), x.get("key", "")))
+    use_cases = sorted(
+        use_cases,
+        key=lambda x: extract_use_case_sort_key(x["fields"].get("summary", ""), x.get("key", ""))
+    )
+
     general = None
     regular = []
     for uc in use_cases:
@@ -259,35 +262,49 @@ def main():
     template.add_page_break()
     add_heading_1(template, "2. Introduction")
     add_heading_2(template, "2.1 Document Overview")
-    add_body_text(template, "This DOCX was generated directly from Jira for final delivery to preserve image quality and stable formatting.")
+    add_body_text(
+        template,
+        "This DOCX was generated directly from Jira for final delivery to preserve image quality and stable formatting."
+    )
 
     if general:
         template.add_page_break()
-        template.add_paragraph(f'2. {general["fields"].get("summary","")}', style="Heading 1")
+        add_heading_1(template, f'2. {general["fields"].get("summary","")}')
         general_desc = adf_to_text(general["fields"].get("description"))
         if general_desc:
-            template.add_paragraph("2.1 Description", style="Heading 2")
+            add_heading_2(template, "2.1 Description")
             add_body_text(template, general_desc)
-        greqs = sorted(reqs_by_uc.get(general["key"], []), key=lambda r: (r["fields"].get("summary","").lower(), r["key"]))
+
+        greqs = sorted(
+            reqs_by_uc.get(general["key"], []),
+            key=lambda r: (r["fields"].get("summary", "").lower(), r["key"])
+        )
         if greqs:
-            template.add_paragraph("2.2 Requirements", style="Heading 2")
+            add_heading_2(template, "2.2 Requirements")
             for req in greqs:
                 add_heading_3(template, f'{req["key"]} - {req["fields"].get("summary","")}')
                 add_body_text(template, adf_to_text(req["fields"].get("description")))
 
     template.add_page_break()
-    template.add_paragraph("3. Use Cases", style="Heading 1")
+    add_heading_1(template, "3. Use Cases")
+
     image_paths = []
     for i, uc in enumerate(regular, start=1):
         template.add_page_break()
-        template.add_paragraph(f'3.{i} {uc["fields"].get("summary","")}', style="Heading 2")
-        reqs = sorted(reqs_by_uc.get(uc["key"], []), key=lambda r: (r["fields"].get("summary","").lower(), r["key"]))
+        add_heading_2(template, f'3.{i} {uc["fields"].get("summary","")}')
+
+        reqs = sorted(
+            reqs_by_uc.get(uc["key"], []),
+            key=lambda r: (r["fields"].get("summary", "").lower(), r["key"])
+        )
+
         first = True
         for req in reqs:
             add_heading_3(template, f'{req["key"]} - {req["fields"].get("summary","")}')
             text = adf_to_text(req["fields"].get("description"))
             if text:
                 add_body_text(template, text)
+
             if first:
                 att = first_image_attachment(req)
                 path = download_attachment(att)
@@ -297,25 +314,27 @@ def main():
                         template.add_picture(path, width=Inches(5.7))
                         cap = template.add_paragraph()
                         cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
                         run = cap.add_run(f"Figure {i} - {uc['fields'].get('summary','')}")
-                        set_run_font(run, size=9, italic=True)
+                        set_run_font(run, name="Arial", size=9, italic=True)
                     except Exception:
                         pass
             first = False
 
     template.save(OUTPUT_PATH)
+
     for p in image_paths:
         try:
             os.unlink(p)
         except Exception:
             pass
+
     print(f"Saved {OUTPUT_PATH}")
 
-
-if __name__ == "__main__":
-    main()
 
 def build_ssd_docx(author: str) -> str:
     main()
     return OUTPUT_PATH
+
+
+if __name__ == "__main__":
+    main()
