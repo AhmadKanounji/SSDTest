@@ -153,7 +153,17 @@ def extract_use_case_sort_key(summary: str, fallback_key: str = ""):
 
 def set_run_font(run, name="Arial", size=9, bold=False, italic=False):
     run.font.name = name
-    run._element.rPr.rFonts.set(qn('w:eastAsia'), name)
+
+    # Force font for all Word rendering layers
+    r = run._element
+    rPr = r.get_or_add_rPr()
+    rFonts = rPr.get_or_add_rFonts()
+
+    rFonts.set(qn('w:ascii'), name)
+    rFonts.set(qn('w:hAnsi'), name)
+    rFonts.set(qn('w:eastAsia'), name)
+    rFonts.set(qn('w:cs'), name)
+
     run.font.size = Pt(size)
     run.bold = bold
     run.italic = italic
