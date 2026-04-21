@@ -8,8 +8,9 @@ from pathlib import Path
 import requests
 from requests.auth import HTTPBasicAuth
 from docx import Document
-from docx.shared import Inches, Pt
+from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
 # ---------- ENV ----------
@@ -25,6 +26,7 @@ auth = HTTPBasicAuth(EMAIL, API_TOKEN)
 TEMPLATE_PATH = os.environ.get("SSD_TEMPLATE_PATH", "ssd_template.docx")
 OUTPUT_PATH = os.environ.get("SSD_OUTPUT_PATH", "SSD_Output.docx")
 TZ = "Africa/Cairo"
+PURPLE_HEX = "7030A0"
 
 
 def jira_search(jql: str):
@@ -98,9 +100,11 @@ def extract_existing_revision_rows_from_confluence(page_html: str):
     )
     if not match:
         return []
+
     table_html = match.group(1)
     rows = []
     tr_matches = re.findall(r"<tr[^>]*>(.*?)</tr>", table_html, flags=re.DOTALL | re.IGNORECASE)
+
     for tr in tr_matches:
         td_matches = re.findall(r"<td[^>]*>(.*?)</td>", tr, flags=re.DOTALL | re.IGNORECASE)
         if len(td_matches) != 4:
@@ -129,6 +133,7 @@ def extract_use_case_sort_key(summary: str, fallback_key: str = ""):
     normalized = text.lower()
     if normalized in ("exigences générales", "exigences generales"):
         return (0, [], normalized, fallback_key)
+
     patterns = [
         r"\bUC\s*([0-9]+(?:\.[0-9]+)*)\b",
         r"\bUse\s*Case\s*([0-9]+(?:\.[0-9]+)*)\b",
@@ -140,19 +145,24 @@ def extract_use_case_sort_key(summary: str, fallback_key: str = ""):
         if m:
             value = m.group(1)
             break
+
     if value is None:
         return (2, [999999], normalized, fallback_key)
+
     try:
         return (1, [int(p) for p in value.split(".")], normalized, fallback_key)
     except Exception:
         return (2, [999999], normalized, fallback_key)
 
 
-def set_run_font(run, name="Arial", size=9, bold=False, italic=False):
+def set_run_font(run, name="Arial", size=9, bold=False, italic=False, color=None):
     run.font.name = name
     run.font.size = Pt(size)
     run.bold = bold
     run.italic = italic
+
+    if color is not None:
+        run.font.color.rgb = color
 
     rPr = run._element.get_or_add_rPr()
     rFonts = rPr.get_or_add_rFonts()
@@ -217,6 +227,49 @@ def add_cover_values(doc, version, date):
                 break
 
 
+def set_cell_background(cell, color_hex):
+    tc_pr = cell._tc.get_or_add_tcPr()
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:fill"), color_hex)
+    tc_pr.append(shd)
+
+
+def set_cell_text(cell, text, bold=False, color=None, align=WD_ALIGN_PARAGRAPH.LEFT):
+    cell.text = ""
+    p = cell.paragraphs[0]
+    p.alignment = align
+    run = p.add_run(text)
+    set_run_font(run, name="Arial", size=9, bold=bold, color=color)
+
+
+def add_revision_history(doc, rows):
+    doc.add_page_break()
+    add_heading_1(doc, "Revision History")
+
+    table = doc.add_table(rows=1, cols=4)
+    table.style = "Table Grid"
+
+    headers = ["Version", "Date", "Author", "Modification"]
+    header_row = table.rows[0]
+
+    for i, header in enumerate(headers):
+        set_cell_background(header_row.cells[i], PURPLE_HEX)
+        set_cell_text(
+            header_row.cells[i],
+            header,
+            bold=True,
+            color=RGBColor(255, 255, 255),
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+        )
+
+    for row in rows:
+        cells = table.add_row().cells
+        set_cell_text(cells[0], row.get("version", ""))
+        set_cell_text(cells[1], row.get("date", ""))
+        set_cell_text(cells[2], row.get("author", ""))
+        set_cell_text(cells[3], row.get("modification", ""))
+
+
 def main():
     template = Document(TEMPLATE_PATH)
 
@@ -231,6 +284,8 @@ def main():
     today = datetime.now(ZoneInfo(TZ)).strftime("%d/%m/%Y")
     latest_version = existing_rows[0]["version"] if existing_rows else "0.1"
     add_cover_values(template, latest_version, today)
+
+    add_revision_history(template, existing_rows)
 
     issues = jira_search(f'project = {PROJECT_KEY} AND issuetype in ("Use Case", Requirement)')
     use_cases = []
