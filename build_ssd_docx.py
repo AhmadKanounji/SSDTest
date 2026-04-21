@@ -206,29 +206,35 @@ def add_body_text(doc, text):
 
 
 def add_heading_1(doc, text):
-    p = doc.add_paragraph()
+    p = doc.add_paragraph(style="Heading 1")
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.space_after = Pt(8)
+
     run = p.add_run(text)
     set_run_font(run, name="Arial", size=14, bold=True)
+
     return p
 
 
 def add_heading_2(doc, text):
-    p = doc.add_paragraph()
+    p = doc.add_paragraph(style="Heading 2")
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.space_after = Pt(6)
+
     run = p.add_run(text)
     set_run_font(run, name="Arial", size=10, bold=True)
+
     return p
 
 
 def add_heading_3(doc, text):
-    p = doc.add_paragraph()
+    p = doc.add_paragraph(style="Heading 3")
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.space_after = Pt(4)
+
     run = p.add_run(text)
     set_run_font(run, name="Arial", size=10, bold=True)
+
     return p
 
 
