@@ -91,30 +91,6 @@ def download_attachment(att):
     tmp.close()
     return tmp.name
 
-def style_distribution_list_table(doc):
-    if not doc.tables:
-        return
-
-    table = doc.tables[0]  # first table in template = Distribution List
-    table.style = "Table Grid"
-
-    # Header row
-    headers = ["Name", "Company"]
-    for i, header in enumerate(headers):
-        set_cell_background(table.rows[0].cells[i], PURPLE_HEX)
-        set_cell_text(
-            table.rows[0].cells[i],
-            header,
-            bold=True,
-            color=RGBColor(255, 255, 255),
-            align=WD_ALIGN_PARAGRAPH.CENTER,
-        )
-
-    # Body rows
-    for row in table.rows[1:]:
-        for cell in row.cells:
-            text = cell.text.strip()
-            set_cell_text(cell, text, bold=False, align=WD_ALIGN_PARAGRAPH.LEFT)
 
 def extract_existing_revision_rows_from_confluence(page_html: str):
     match = re.search(
@@ -209,10 +185,9 @@ def add_heading_1(doc, text):
     p = doc.add_paragraph(style="Heading 1")
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.space_after = Pt(8)
-
+    p.clear()
     run = p.add_run(text)
     set_run_font(run, name="Arial", size=14, bold=True)
-
     return p
 
 
@@ -220,10 +195,9 @@ def add_heading_2(doc, text):
     p = doc.add_paragraph(style="Heading 2")
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.space_after = Pt(6)
-
+    p.clear()
     run = p.add_run(text)
     set_run_font(run, name="Arial", size=10, bold=True)
-
     return p
 
 
@@ -231,10 +205,9 @@ def add_heading_3(doc, text):
     p = doc.add_paragraph(style="Heading 3")
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.space_after = Pt(4)
-
+    p.clear()
     run = p.add_run(text)
     set_run_font(run, name="Arial", size=10, bold=True)
-
     return p
 
 
@@ -244,16 +217,17 @@ def add_cover_values(doc, version, date):
         "Document Release Version:": version,
         "Document Release Date:": date,
     }
-    for p in doc.paragraphs[:10]:
+    for p in doc.paragraphs[:20]:
         txt = p.text.strip()
         for label, value in replacements.items():
             if txt.startswith(label):
                 p.clear()
-                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                r1 = p.add_run(label + " ")
-                set_run_font(r1, size=8, bold=True)
-                r2 = p.add_run(value)
-                set_run_font(r2, size=8)
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT if ":" not in txt[:1] else p.alignment
+                run1 = p.add_run(label)
+                set_run_font(run1, size=8, bold=True)
+                if value:
+                    run2 = p.add_run(" " + value)
+                    set_run_font(run2, size=8)
                 break
 
 
@@ -272,25 +246,54 @@ def set_cell_text(cell, text, bold=False, color=None, align=WD_ALIGN_PARAGRAPH.L
     set_run_font(run, name="Arial", size=9, bold=bold, color=color)
 
 
-def add_revision_history(doc, rows):
-    doc.add_page_break()
-    add_heading_1(doc, "Revision History")
+def style_distribution_list_table(doc):
+    if len(doc.tables) < 1:
+        return
 
-    table = doc.add_table(rows=1, cols=4)
+    table = doc.tables[0]
+    table.style = "Table Grid"
+
+    headers = ["Name", "Company"]
+    if len(table.rows) > 0 and len(table.rows[0].cells) >= 2:
+        for i, header in enumerate(headers):
+            set_cell_background(table.rows[0].cells[i], PURPLE_HEX)
+            set_cell_text(
+                table.rows[0].cells[i],
+                header,
+                bold=True,
+                color=RGBColor(255, 255, 255),
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+
+    for row in table.rows[1:]:
+        for cell in row.cells:
+            set_cell_text(cell, cell.text.strip(), bold=False, align=WD_ALIGN_PARAGRAPH.LEFT)
+
+
+def fill_revision_history(doc, rows):
+    if len(doc.tables) < 2:
+        return
+
+    table = doc.tables[1]
     table.style = "Table Grid"
 
     headers = ["Version", "Date", "Author", "Modification"]
-    header_row = table.rows[0]
+    if len(table.rows) == 0:
+        table.add_row()
 
-    for i, header in enumerate(headers):
-        set_cell_background(header_row.cells[i], PURPLE_HEX)
-        set_cell_text(
-            header_row.cells[i],
-            header,
-            bold=True,
-            color=RGBColor(255, 255, 255),
-            align=WD_ALIGN_PARAGRAPH.CENTER,
-        )
+    if len(table.rows[0].cells) >= 4:
+        for i, header in enumerate(headers):
+            set_cell_background(table.rows[0].cells[i], PURPLE_HEX)
+            set_cell_text(
+                table.rows[0].cells[i],
+                header,
+                bold=True,
+                color=RGBColor(255, 255, 255),
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+
+    while len(table.rows) > 1:
+        table._tbl.remove(table.rows[1]._tr)
 
     for row in rows:
         cells = table.add_row().cells
@@ -299,40 +302,40 @@ def add_revision_history(doc, rows):
         set_cell_text(cells[2], row.get("author", ""))
         set_cell_text(cells[3], row.get("modification", ""))
 
-def add_table_of_contents(doc):
-    doc.add_page_break()
-    add_heading_1(doc, "Table of Contents")
 
-    p = doc.add_paragraph()
+def fill_reference_documents_table(doc):
+    if len(doc.tables) < 3:
+        return
 
-    # begin field
-    run = p.add_run()
-    fld_char_begin = OxmlElement("w:fldChar")
-    fld_char_begin.set(qn("w:fldCharType"), "begin")
-    run._r.append(fld_char_begin)
+    table = doc.tables[2]
+    table.style = "Table Grid"
 
-    # instruction text
-    run = p.add_run()
-    instr_text = OxmlElement("w:instrText")
-    instr_text.set(qn("xml:space"), "preserve")
-    instr_text.text = r'TOC \o "1-3" \h \z \u'
-    run._r.append(instr_text)
+    headers = ["Id", "Document or Meeting Name", "Release", "Date", "Reference"]
+    if len(table.rows) > 0 and len(table.rows[0].cells) >= 5:
+        for i, header in enumerate(headers):
+            set_cell_background(table.rows[0].cells[i], PURPLE_HEX)
+            set_cell_text(
+                table.rows[0].cells[i],
+                header,
+                bold=True,
+                color=RGBColor(255, 255, 255),
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
 
-    # separate
-    run = p.add_run()
-    fld_char_separate = OxmlElement("w:fldChar")
-    fld_char_separate.set(qn("w:fldCharType"), "separate")
-    run._r.append(fld_char_separate)
 
-    # placeholder text visible before update
-    run = p.add_run("Right-click and update field.")
-    set_run_font(run, name="Arial", size=9)
+def find_paragraph_index(doc, exact_text):
+    for i, p in enumerate(doc.paragraphs):
+        if p.text.strip() == exact_text.strip():
+            return i
+    return None
 
-    # end field
-    run = p.add_run()
-    fld_char_end = OxmlElement("w:fldChar")
-    fld_char_end.set(qn("w:fldCharType"), "end")
-    run._r.append(fld_char_end)
+
+def append_paragraph_after(doc, text="", style=None):
+    p = doc.add_paragraph(style=style)
+    if text:
+        run = p.add_run(text)
+        set_run_font(run, name="Arial", size=9)
+    return p
 
 
 def main():
@@ -348,11 +351,11 @@ def main():
 
     today = datetime.now(ZoneInfo(TZ)).strftime("%d/%m/%Y")
     latest_version = existing_rows[0]["version"] if existing_rows else "0.1"
+
     add_cover_values(template, latest_version, today)
     style_distribution_list_table(template)
-
-    add_revision_history(template, existing_rows)
-    add_table_of_contents(template)
+    fill_revision_history(template, existing_rows)
+    fill_reference_documents_table(template)
 
     issues = jira_search(f'project = {PROJECT_KEY} AND issuetype in ("Use Case", Requirement)')
     use_cases = []
@@ -381,20 +384,12 @@ def main():
         else:
             regular.append(uc)
 
-    template.add_page_break()
-    add_heading_1(template, "2. Introduction")
-    add_heading_2(template, "2.1 Document Overview")
-    add_body_text(
-        template,
-        "This DOCX was generated directly from Jira for final delivery to preserve image quality and stable formatting."
-    )
-
+    # Fill Exigences Générales content after the existing template headings
     if general:
-        template.add_page_break()
-        add_heading_1(template, f'2. {general["fields"].get("summary","")}')
+        add_heading_1(template, "3. Exigences Générales")
         general_desc = adf_to_text(general["fields"].get("description"))
         if general_desc:
-            add_heading_2(template, "2.1 Description")
+            add_heading_2(template, "3.1 Description")
             add_body_text(template, general_desc)
 
         greqs = sorted(
@@ -402,18 +397,18 @@ def main():
             key=lambda r: (r["fields"].get("summary", "").lower(), r["key"])
         )
         if greqs:
-            add_heading_2(template, "2.2 Requirements")
+            add_heading_2(template, "3.2 Requirements")
             for req in greqs:
                 add_heading_3(template, f'{req["key"]} - {req["fields"].get("summary","")}')
                 add_body_text(template, adf_to_text(req["fields"].get("description")))
 
     template.add_page_break()
-    add_heading_1(template, "3. Use Cases")
+    add_heading_1(template, "4. Use Cases")
 
     image_paths = []
     for i, uc in enumerate(regular, start=1):
         template.add_page_break()
-        add_heading_2(template, f'3.{i} {uc["fields"].get("summary","")}')
+        add_heading_2(template, f'4.{i} {uc["fields"].get("summary","")}')
 
         reqs = sorted(
             reqs_by_uc.get(uc["key"], []),
