@@ -164,41 +164,12 @@ def set_run_font(run, name="Arial", size=9, bold=False, italic=False, color=None
     if color is not None:
         run.font.color.rgb = color
 
-    rPr = run._element.get_or_add_rPr()
-    rFonts = rPr.get_or_add_rFonts()
-    rFonts.set(qn("w:ascii"), name)
-    rFonts.set(qn("w:hAnsi"), name)
-    rFonts.set(qn("w:eastAsia"), name)
-    rFonts.set(qn("w:cs"), name)
-
-
-def add_body_text(doc, text):
-    for block in [b.strip() for b in text.split("\n\n") if b.strip()]:
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        p.paragraph_format.space_after = Pt(4)
-        run = p.add_run(block)
-        set_run_font(run, name="Arial", size=9)
-
-
-def add_heading_2(doc, text):
-    p = doc.add_paragraph(style="Heading 2")
-    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p.paragraph_format.space_after = Pt(6)
-    p.clear()
-    run = p.add_run(text)
-    set_run_font(run, name="Arial", size=10, bold=True)
-    return p
-
-
-def add_heading_3(doc, text):
-    p = doc.add_paragraph(style="Heading 3")
-    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p.paragraph_format.space_after = Pt(4)
-    p.clear()
-    run = p.add_run(text)
-    set_run_font(run, name="Arial", size=10, bold=True)
-    return p
+    r_pr = run._element.get_or_add_rPr()
+    r_fonts = r_pr.get_or_add_rFonts()
+    r_fonts.set(qn("w:ascii"), name)
+    r_fonts.set(qn("w:hAnsi"), name)
+    r_fonts.set(qn("w:eastAsia"), name)
+    r_fonts.set(qn("w:cs"), name)
 
 
 def add_cover_values(doc, version, date):
@@ -312,11 +283,12 @@ def fill_reference_documents_table(doc):
             )
 
 
-def find_paragraph_index(doc, exact_text):
-    for i, p in enumerate(doc.paragraphs):
+def find_paragraph(doc, exact_text):
+    for p in doc.paragraphs:
         if p.text.strip() == exact_text.strip():
-            return i
+            return p
     return None
+
 
 def insert_paragraph_after(paragraph, text="", style=None):
     new_p = OxmlElement("w:p")
@@ -329,13 +301,6 @@ def insert_paragraph_after(paragraph, text="", style=None):
         run = new_paragraph.add_run(text)
         set_run_font(run, name="Arial", size=9)
     return new_paragraph
-
-
-def find_paragraph(doc, exact_text):
-    for p in doc.paragraphs:
-        if p.text.strip() == exact_text.strip():
-            return p
-    return None
 
 
 def insert_body_text_after(anchor_paragraph, text):
@@ -367,6 +332,7 @@ def insert_heading_2_after(anchor_paragraph, text):
     run = p.add_run(text)
     set_run_font(run, name="Arial", size=10, bold=True)
     return p
+
 
 def main():
     template = Document(TEMPLATE_PATH)
@@ -415,77 +381,40 @@ def main():
             regular.append(uc)
 
     # Inject Exigences Générales exactly under template headings
-if general:
-    desc_anchor = find_paragraph(template, "3.1 Description")
-    req_anchor = find_paragraph(template, "3.2 Requirements")
+    if general:
+        desc_anchor = find_paragraph(template, "3.1 Description")
+        req_anchor = find_paragraph(template, "3.2 Requirements")
 
-    if desc_anchor:
-        general_desc = adf_to_text(general["fields"].get("description"))
-        if general_desc:
-            insert_body_text_after(desc_anchor, general_desc)
+        if desc_anchor:
+            general_desc = adf_to_text(general["fields"].get("description"))
+            if general_desc:
+                insert_body_text_after(desc_anchor, general_desc)
 
-    if req_anchor:
-        current = req_anchor
-        greqs = sorted(
-            reqs_by_uc.get(general["key"], []),
-            key=lambda r: (r["fields"].get("summary", "").lower(), r["key"])
-        )
-        for req in greqs:
-            current = insert_heading_3_after(
-                current,
-                f'{req["key"]} - {req["fields"].get("summary","")}'
+        if req_anchor:
+            current = req_anchor
+            greqs = sorted(
+                reqs_by_uc.get(general["key"], []),
+                key=lambda r: (r["fields"].get("summary", "").lower(), r["key"])
             )
-            req_text = adf_to_text(req["fields"].get("description"))
-            if req_text:
-                current = insert_body_text_after(current, req_text)
+            for req in greqs:
+                current = insert_heading_3_after(
+                    current,
+                    f'{req["key"]} - {req["fields"].get("summary","")}'
+                )
+                req_text = adf_to_text(req["fields"].get("description"))
+                if req_text:
+                    current = insert_body_text_after(current, req_text)
 
-# Inject Use Cases exactly after the template heading
-use_cases_anchor = find_paragraph(template, "4. Use Cases")
+    # Inject Use Cases exactly after the template heading
+    use_cases_anchor = find_paragraph(template, "4. Use Cases")
+    image_paths = []
+    current = use_cases_anchor
 
-image_paths = []
-current = use_cases_anchor
+    for i, uc in enumerate(regular, start=1):
+        if current is None:
+            break
 
-for i, uc in enumerate(regular, start=1):
-    if current is None:
-        break
-
-    current = insert_heading_2_after(current, f'4.{i} {uc["fields"].get("summary","")}')
-
-    reqs = sorted(
-        reqs_by_uc.get(uc["key"], []),
-        key=lambda r: (r["fields"].get("summary", "").lower(), r["key"])
-    )
-
-    first = True
-    for req in reqs:
-        current = insert_heading_3_after(
-            current,
-            f'{req["key"]} - {req["fields"].get("summary","")}'
-        )
-
-        text = adf_to_text(req["fields"].get("description"))
-        if text:
-            current = insert_body_text_after(current, text)
-
-        if first:
-            att = first_image_attachment(req)
-            path = download_attachment(att)
-            if path:
-                image_paths.append(path)
-                try:
-                    img_p = insert_paragraph_after(current)
-                    run = img_p.add_run()
-                    run.add_picture(path, width=Inches(5.7))
-                    current = img_p
-
-                    cap = insert_paragraph_after(current)
-                    cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    run = cap.add_run(f"Figure {i} - {uc['fields'].get('summary','')}")
-                    set_run_font(run, name="Arial", size=9, italic=True)
-                    current = cap
-                except Exception:
-                    pass
-        first = False
+        current = insert_heading_2_after(current, f'4.{i} {uc["fields"].get("summary","")}')
 
         reqs = sorted(
             reqs_by_uc.get(uc["key"], []),
@@ -494,10 +423,14 @@ for i, uc in enumerate(regular, start=1):
 
         first = True
         for req in reqs:
-            add_heading_3(template, f'{req["key"]} - {req["fields"].get("summary","")}')
+            current = insert_heading_3_after(
+                current,
+                f'{req["key"]} - {req["fields"].get("summary","")}'
+            )
+
             text = adf_to_text(req["fields"].get("description"))
             if text:
-                add_body_text(template, text)
+                current = insert_body_text_after(current, text)
 
             if first:
                 att = first_image_attachment(req)
@@ -505,11 +438,16 @@ for i, uc in enumerate(regular, start=1):
                 if path:
                     image_paths.append(path)
                     try:
-                        template.add_picture(path, width=Inches(5.7))
-                        cap = template.add_paragraph()
+                        img_p = insert_paragraph_after(current)
+                        run = img_p.add_run()
+                        run.add_picture(path, width=Inches(5.7))
+                        current = img_p
+
+                        cap = insert_paragraph_after(current)
                         cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
                         run = cap.add_run(f"Figure {i} - {uc['fields'].get('summary','')}")
                         set_run_font(run, name="Arial", size=9, italic=True)
+                        current = cap
                     except Exception:
                         pass
             first = False
