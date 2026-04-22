@@ -318,6 +318,55 @@ def find_paragraph_index(doc, exact_text):
             return i
     return None
 
+def insert_paragraph_after(paragraph, text="", style=None):
+    new_p = OxmlElement("w:p")
+    paragraph._p.addnext(new_p)
+    new_paragraph = paragraph._parent.add_paragraph()
+    new_paragraph._p = new_p
+    if style:
+        new_paragraph.style = style
+    if text:
+        run = new_paragraph.add_run(text)
+        set_run_font(run, name="Arial", size=9)
+    return new_paragraph
+
+
+def find_paragraph(doc, exact_text):
+    for p in doc.paragraphs:
+        if p.text.strip() == exact_text.strip():
+            return p
+    return None
+
+
+def insert_body_text_after(anchor_paragraph, text):
+    current = anchor_paragraph
+    for block in [b.strip() for b in text.split("\n\n") if b.strip()]:
+        current = insert_paragraph_after(current)
+        current.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        current.paragraph_format.space_after = Pt(4)
+        run = current.add_run(block)
+        set_run_font(run, name="Arial", size=9)
+    return current
+
+
+def insert_heading_3_after(anchor_paragraph, text):
+    p = insert_paragraph_after(anchor_paragraph, style="Heading 3")
+    p.clear()
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p.paragraph_format.space_after = Pt(4)
+    run = p.add_run(text)
+    set_run_font(run, name="Arial", size=10, bold=True)
+    return p
+
+
+def insert_heading_2_after(anchor_paragraph, text):
+    p = insert_paragraph_after(anchor_paragraph, style="Heading 2")
+    p.clear()
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p.paragraph_format.space_after = Pt(6)
+    run = p.add_run(text)
+    set_run_font(run, name="Arial", size=10, bold=True)
+    return p
 
 def main():
     template = Document(TEMPLATE_PATH)
@@ -365,25 +414,78 @@ def main():
         else:
             regular.append(uc)
 
-    # Inject content only, no duplicated headings
-    if general:
+    # Inject Exigences Générales exactly under template headings
+if general:
+    desc_anchor = find_paragraph(template, "3.1 Description")
+    req_anchor = find_paragraph(template, "3.2 Requirements")
+
+    if desc_anchor:
         general_desc = adf_to_text(general["fields"].get("description"))
         if general_desc:
-            add_body_text(template, general_desc)
+            insert_body_text_after(desc_anchor, general_desc)
 
+    if req_anchor:
+        current = req_anchor
         greqs = sorted(
             reqs_by_uc.get(general["key"], []),
             key=lambda r: (r["fields"].get("summary", "").lower(), r["key"])
         )
         for req in greqs:
-            add_heading_3(template, f'{req["key"]} - {req["fields"].get("summary","")}')
-            add_body_text(template, adf_to_text(req["fields"].get("description")))
+            current = insert_heading_3_after(
+                current,
+                f'{req["key"]} - {req["fields"].get("summary","")}'
+            )
+            req_text = adf_to_text(req["fields"].get("description"))
+            if req_text:
+                current = insert_body_text_after(current, req_text)
 
-    # Use Cases content only, no duplicated main section heading
-    image_paths = []
-    for i, uc in enumerate(regular, start=1):
-        template.add_page_break()
-        add_heading_2(template, f'4.{i} {uc["fields"].get("summary","")}')
+# Inject Use Cases exactly after the template heading
+use_cases_anchor = find_paragraph(template, "4. Use Cases")
+
+image_paths = []
+current = use_cases_anchor
+
+for i, uc in enumerate(regular, start=1):
+    if current is None:
+        break
+
+    current = insert_heading_2_after(current, f'4.{i} {uc["fields"].get("summary","")}')
+
+    reqs = sorted(
+        reqs_by_uc.get(uc["key"], []),
+        key=lambda r: (r["fields"].get("summary", "").lower(), r["key"])
+    )
+
+    first = True
+    for req in reqs:
+        current = insert_heading_3_after(
+            current,
+            f'{req["key"]} - {req["fields"].get("summary","")}'
+        )
+
+        text = adf_to_text(req["fields"].get("description"))
+        if text:
+            current = insert_body_text_after(current, text)
+
+        if first:
+            att = first_image_attachment(req)
+            path = download_attachment(att)
+            if path:
+                image_paths.append(path)
+                try:
+                    img_p = insert_paragraph_after(current)
+                    run = img_p.add_run()
+                    run.add_picture(path, width=Inches(5.7))
+                    current = img_p
+
+                    cap = insert_paragraph_after(current)
+                    cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    run = cap.add_run(f"Figure {i} - {uc['fields'].get('summary','')}")
+                    set_run_font(run, name="Arial", size=9, italic=True)
+                    current = cap
+                except Exception:
+                    pass
+        first = False
 
         reqs = sorted(
             reqs_by_uc.get(uc["key"], []),
