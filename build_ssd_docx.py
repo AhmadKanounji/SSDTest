@@ -70,6 +70,15 @@ def adf_to_text(adf):
     return text.strip()
 
 
+def clean_requirement_text(text: str) -> str:
+    if not text:
+        return ""
+    cleaned = re.sub(r"\[(?:[^\]]+)\]+", "", text)
+    cleaned = re.sub(r"\s+-\s+-\s+", " - ", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    return cleaned.strip(" -")
+
+
 def first_image_attachment(issue):
     attachments = issue["fields"].get("attachment") or []
     for att in attachments:
@@ -260,7 +269,8 @@ def fill_revision_history(doc, rows):
         set_cell_text(cells[0], row.get("version", ""))
         set_cell_text(cells[1], row.get("date", ""))
         set_cell_text(cells[2], row.get("author", ""))
-        set_cell_text(cells[3], row.get("modification", ""))
+        clean_mod = clean_requirement_text(row.get("modification", ""))
+        set_cell_text(cells[3], clean_mod)
 
 
 def fill_reference_documents_table(doc):
@@ -314,9 +324,8 @@ def insert_body_text_after(anchor_paragraph, text):
     return current
 
 
-def insert_heading_3_after(anchor_paragraph, text):
-    p = insert_paragraph_after(anchor_paragraph, style="Heading 3")
-    p.clear()
+def insert_requirement_title_after(anchor_paragraph, text):
+    p = insert_paragraph_after(anchor_paragraph)
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.space_after = Pt(4)
     run = p.add_run(text)
@@ -397,9 +406,10 @@ def main():
                 key=lambda r: (r["fields"].get("summary", "").lower(), r["key"])
             )
             for req in greqs:
-                current = insert_heading_3_after(
+                clean_summary = clean_requirement_text(req["fields"].get("summary", ""))
+                current = insert_requirement_title_after(
                     current,
-                    f'{req["key"]} - {req["fields"].get("summary","")}'
+                    f'{req["key"]} - {clean_summary}'
                 )
                 req_text = adf_to_text(req["fields"].get("description"))
                 if req_text:
@@ -423,9 +433,10 @@ def main():
 
         first = True
         for req in reqs:
-            current = insert_heading_3_after(
+            clean_summary = clean_requirement_text(req["fields"].get("summary", ""))
+            current = insert_requirement_title_after(
                 current,
-                f'{req["key"]} - {req["fields"].get("summary","")}'
+                f'{req["key"]} - {clean_summary}'
             )
 
             text = adf_to_text(req["fields"].get("description"))
