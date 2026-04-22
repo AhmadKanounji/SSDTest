@@ -359,6 +359,7 @@ def main():
         existing_rows = extract_existing_revision_rows_from_confluence(
             page.get("body", {}).get("storage", {}).get("value", "")
         )
+        existing_rows = list(reversed(existing_rows))
 
     today = datetime.now(ZoneInfo(TZ)).strftime("%d/%m/%Y")
     latest_version = existing_rows[0]["version"] if existing_rows else "0.1"
