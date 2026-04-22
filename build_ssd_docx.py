@@ -1,6 +1,7 @@
 import os
 import re
 import tempfile
+import html
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -118,7 +119,12 @@ def extract_existing_revision_rows_from_confluence(page_html: str):
         td_matches = re.findall(r"<td[^>]*>(.*?)</td>", tr, flags=re.DOTALL | re.IGNORECASE)
         if len(td_matches) != 4:
             continue
-        cleaned = [re.sub(r"<[^>]+>", "", td).replace("&nbsp;", " ").strip() for td in td_matches]
+        cleaned = [
+            html.unescape(
+                re.sub(r"<[^>]+>", "", td).replace("&nbsp;", " ").strip()
+            )
+            for td in td_matches
+        ]
         rows.append({
             "version": cleaned[0],
             "date": cleaned[1],
