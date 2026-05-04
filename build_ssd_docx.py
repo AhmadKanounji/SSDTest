@@ -425,7 +425,7 @@ def insert_adf_content_after(anchor_paragraph, adf, attachments):
 
         if isinstance(node, list):
             for child in node:
-                walk(child, list_type=list_type, level=level)
+                walk(child, list_type=list_type, level=level, number=number)
             return
 
         if not isinstance(node, dict):
@@ -438,14 +438,16 @@ def insert_adf_content_after(anchor_paragraph, adf, attachments):
             if text:
                 if list_type == "ordered" and number is not None:
                     current = insert_numbered_item_after(current, number, text, level)
+                elif list_type == "bullet":
+                    current = insert_body_text_after(current, f"• {text}")
                 else:
                     current = insert_body_text_after(current, text)
 
         elif node_type == "orderedList":
-            number = 1
+            counter = 1
             for child in node.get("content", []):
-                walk(child, list_type="ordered", level=level, number=number)
-                number += 1
+                walk(child, list_type="ordered", level=level, number=counter)
+                counter += 1
 
         elif node_type == "bulletList":
             for child in node.get("content", []):
@@ -453,7 +455,7 @@ def insert_adf_content_after(anchor_paragraph, adf, attachments):
 
         elif node_type == "listItem":
             for child in node.get("content", []):
-                walk(child, list_type=list_type, level=level)
+                walk(child, list_type=list_type, level=level, number=number)
 
         elif node_type in ("mediaSingle", "mediaGroup", "media"):
             if image_index < len(image_attachments):
@@ -469,7 +471,7 @@ def insert_adf_content_after(anchor_paragraph, adf, attachments):
 
         else:
             for child in node.get("content", []):
-                walk(child, list_type=list_type, level=level)
+                walk(child, list_type=list_type, level=level, number=number)
 
     walk(adf)
     return current
