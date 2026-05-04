@@ -196,8 +196,8 @@ def extract_pending_ssd_changes(pending_issue_key: str):
         blocks = re.findall(pattern, text, flags=re.DOTALL | re.IGNORECASE)
 
         for block in blocks:
-            key_match = re.search(r"Key:\s*([A-Z]+-\d+)", block)
-            type_match = re.search(r"Type:\s*(.+)", block)
+            key_match = re.search(r"Key=([A-Z]+-\d+)", block)
+            type_match = re.search(r"Type=([^\n]+)", block)
 
             if not key_match:
                 continue
