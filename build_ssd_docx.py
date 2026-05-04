@@ -436,7 +436,7 @@ def insert_adf_content_after(anchor_paragraph, adf, attachments):
         if node_type == "paragraph":
             text = adf_to_text(node).strip()
             if text:
-                if list_type == "ordered":
+                if list_type == "ordered" and number is not None:
                     current = insert_numbered_item_after(current, number, text, level)
                 else:
                     current = insert_body_text_after(current, text)
