@@ -417,7 +417,7 @@ def insert_adf_content_after(anchor_paragraph, adf, attachments):
 
     image_index = 0
 
-    def walk(node, list_type=None, level=0):
+    def walk(node, list_type=None, level=0, number=None):
         nonlocal current, image_index
 
         if not node:
