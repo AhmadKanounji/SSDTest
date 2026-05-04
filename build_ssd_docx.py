@@ -591,6 +591,10 @@ def generate_docx():
 
     data = request.get_json(force=True) or {}
 
+    print("[SSD] RAW DATA =", data, flush=True)
+    print("[SSD] pendingIssueKey =", data.get("pendingIssueKey"), flush=True)
+    print("[SSD] releaseVersion =", data.get("releaseVersion"), flush=True)
+
     PENDING_RELEASE_ISSUE_KEY = data.get("pendingIssueKey", "").strip()
     RELEASE_VERSION = data.get("releaseVersion", "").strip()
     RELEASE_AUTHOR = data.get("releaseAuthor", "Ahmad Kanounji").strip()
