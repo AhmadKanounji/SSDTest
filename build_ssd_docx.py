@@ -394,6 +394,54 @@ def insert_body_text_after(anchor_paragraph, text):
         set_run_font(run, name="Arial", size=9)
     return current
 
+def insert_adf_content_after(anchor_paragraph, adf, attachments):
+    current = anchor_paragraph
+    image_attachments = [
+        att for att in attachments
+        if (att.get("mimeType") or "").lower().startswith("image/")
+        or (att.get("filename") or "").lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
+    ]
+    image_index = 0
+
+    def walk(node):
+        nonlocal current, image_index
+
+        if not node:
+            return
+
+        if isinstance(node, list):
+            for child in node:
+                walk(child)
+            return
+
+        if not isinstance(node, dict):
+            return
+
+        node_type = node.get("type")
+
+        if node_type == "paragraph":
+            text = adf_to_text(node).strip()
+            if text:
+                current = insert_body_text_after(current, text)
+
+        elif node_type in ("mediaSingle", "mediaGroup", "media"):
+            if image_index < len(image_attachments):
+                att = image_attachments[image_index]
+                image_index += 1
+
+                path = download_attachment(att)
+                if path:
+                    img_p = insert_paragraph_after(current)
+                    run = img_p.add_run()
+                    run.add_picture(path, width=Inches(5.7))
+                    current = img_p
+
+        else:
+            for child in node.get("content", []):
+                walk(child)
+
+    walk(adf)
+    return current
 
 def insert_requirement_title_after(anchor_paragraph, text):
     p = insert_paragraph_after(anchor_paragraph)
@@ -427,19 +475,12 @@ def main():
         existing_rows = list(reversed(existing_rows))
 
     today = datetime.now(ZoneInfo(TZ)).strftime("%d/%m/%Y")
-
     latest_version = existing_rows[0]["version"] if existing_rows else "0.1"
 
     if PENDING_RELEASE_ISSUE_KEY and RELEASE_VERSION:
         modification = build_revision_modification_from_pending_changes(PENDING_RELEASE_ISSUE_KEY)
-        print("DEBUG pending issue:", PENDING_RELEASE_ISSUE_KEY)
-        print("DEBUG release version:", RELEASE_VERSION)
-        print("DEBUG modification:", repr(modification))
-        print("DEBUG existing rows count:", len(existing_rows))
-        print("DEBUG latest existing row:", existing_rows[0] if existing_rows else "NONE")
 
-        if True:
-            modification = modification or "DEBUG TEST MODIFICATION"
+        if modification:
             new_revision_row = {
                 "version": RELEASE_VERSION,
                 "date": today,
@@ -452,11 +493,6 @@ def main():
 
     add_cover_values(template, latest_version, today)
     style_distribution_list_table(template)
-    
-    for idx, table in enumerate(template.tables):
-        first_row = " | ".join(cell.text for cell in table.rows[0].cells) if table.rows else ""
-        print(f"TABLE {idx}: {first_row}")
-        
     fill_revision_history(template, existing_rows)
     fill_reference_documents_table(template)
 
@@ -466,8 +502,10 @@ def main():
 
     for issue in issues:
         issue_type = issue["fields"]["issuetype"]["name"]
+
         if issue_type == "Use Case":
             use_cases.append(issue)
+
         elif issue_type == "Requirement":
             parent = issue["fields"].get("parent")
             if parent and parent.get("key"):
@@ -475,19 +513,24 @@ def main():
 
     use_cases = sorted(
         use_cases,
-        key=lambda x: extract_use_case_sort_key(x["fields"].get("summary", ""), x.get("key", ""))
+        key=lambda x: extract_use_case_sort_key(
+            x["fields"].get("summary", ""),
+            x.get("key", "")
+        )
     )
 
     general = None
     regular = []
+
     for uc in use_cases:
         title = (uc["fields"].get("summary", "") or "").strip().lower()
+
         if title in ("exigences générales", "exigences generales"):
             general = uc
         else:
             regular.append(uc)
 
-    # Inject Exigences Générales exactly under template headings
+    # Inject Exigences Générales
     if general:
         desc_anchor = find_paragraph(template, "3.1 Description")
         req_anchor = find_paragraph(template, "3.2 Requirements")
@@ -499,76 +542,59 @@ def main():
 
         if req_anchor:
             current = req_anchor
+
             greqs = sorted(
                 reqs_by_uc.get(general["key"], []),
                 key=lambda r: (r["fields"].get("summary", "").lower(), r["key"])
             )
+
             for req in greqs:
                 clean_summary = clean_requirement_text(req["fields"].get("summary", ""))
+
                 current = insert_requirement_title_after(
                     current,
                     f'{req["key"]} - {clean_summary}'
                 )
-                req_text = adf_to_text(req["fields"].get("description"))
-                if req_text:
-                    current = insert_body_text_after(current, req_text)
 
-    # Inject Use Cases exactly after the template heading
+                current = insert_adf_content_after(
+                    current,
+                    req["fields"].get("description"),
+                    req["fields"].get("attachment") or []
+                )
+
+    # Inject Use Cases
     use_cases_anchor = find_paragraph(template, "4. Use Cases")
-    image_paths = []
     current = use_cases_anchor
 
     for i, uc in enumerate(regular, start=1):
         if current is None:
             break
 
-        current = insert_heading_2_after(current, f'4.{i} {uc["fields"].get("summary","")}')
+        current = insert_heading_2_after(
+            current,
+            f'4.{i} {uc["fields"].get("summary", "")}'
+        )
 
         reqs = sorted(
             reqs_by_uc.get(uc["key"], []),
             key=lambda r: (r["fields"].get("summary", "").lower(), r["key"])
         )
 
-        first = True
         for req in reqs:
             clean_summary = clean_requirement_text(req["fields"].get("summary", ""))
+
             current = insert_requirement_title_after(
                 current,
                 f'{req["key"]} - {clean_summary}'
             )
 
-            text = adf_to_text(req["fields"].get("description"))
-            if text:
-                current = insert_body_text_after(current, text)
-
-            if first:
-                att = first_image_attachment(req)
-                path = download_attachment(att)
-                if path:
-                    image_paths.append(path)
-                    try:
-                        img_p = insert_paragraph_after(current)
-                        run = img_p.add_run()
-                        run.add_picture(path, width=Inches(5.7))
-                        current = img_p
-
-                        cap = insert_paragraph_after(current)
-                        cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                        run = cap.add_run(f"Figure {i} - {uc['fields'].get('summary','')}")
-                        set_run_font(run, name="Arial", size=9, italic=True)
-                        current = cap
-                    except Exception:
-                        pass
-            first = False
+            current = insert_adf_content_after(
+                current,
+                req["fields"].get("description"),
+                req["fields"].get("attachment") or []
+            )
 
     template.save(OUTPUT_PATH)
-
-    for p in image_paths:
-        try:
-            os.unlink(p)
-        except Exception:
-            pass
-
     print(f"Saved {OUTPUT_PATH}")
 
 
