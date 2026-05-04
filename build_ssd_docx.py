@@ -29,7 +29,7 @@ OUTPUT_PATH = os.environ.get("SSD_OUTPUT_PATH", "SSD_Output.docx")
 TZ = "Africa/Cairo"
 PURPLE_HEX = "7030A0"
 PENDING_RELEASE_ISSUE_KEY = os.environ.get("PENDING_RELEASE_ISSUE_KEY", "DD-1026").strip()
-RELEASE_VERSION = os.environ.get("RELEASE_VERSION", "2.7").strip()
+RELEASE_VERSION = os.environ.get("RELEASE_VERSION", "4.9").strip()
 RELEASE_AUTHOR = os.environ.get("RELEASE_AUTHOR", "Ahmad Kanounji").strip()
 
 
@@ -189,7 +189,7 @@ def extract_pending_ssd_changes(pending_issue_key: str):
     comments = get_jira_issue_comments(pending_issue_key)
 
     changes = {}
-    pattern = r"\[SSD_CHANGE\](.*?)\[/SSD_CHANGE\]"
+    pattern = r"<<SSD_CHANGE>>(.*?)<</SSD_CHANGE>>"
 
     for comment in comments:
         text = comment_body_to_text(comment.get("body"))
