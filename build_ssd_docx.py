@@ -28,9 +28,11 @@ TEMPLATE_PATH = os.environ.get("SSD_TEMPLATE_PATH", "ssd_template.docx")
 OUTPUT_PATH = os.environ.get("SSD_OUTPUT_PATH", "SSD_Output.docx")
 TZ = "Africa/Cairo"
 PURPLE_HEX = "7030A0"
-PENDING_RELEASE_ISSUE_KEY = os.environ.get("PENDING_RELEASE_ISSUE_KEY", "DD-1026").strip()
-RELEASE_VERSION = os.environ.get("RELEASE_VERSION", "4.9").strip()
-RELEASE_AUTHOR = os.environ.get("RELEASE_AUTHOR", "Ahmad Kanounji").strip()
+data = request.json
+
+PENDING_RELEASE_ISSUE_KEY = data.get("pendingIssueKey")
+RELEASE_VERSION = data.get("releaseVersion")
+RELEASE_AUTHOR = data.get("releaseAuthor")
 
 
 def jira_search(jql: str):
