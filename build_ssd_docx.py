@@ -432,8 +432,14 @@ def main():
 
     if PENDING_RELEASE_ISSUE_KEY and RELEASE_VERSION:
         modification = build_revision_modification_from_pending_changes(PENDING_RELEASE_ISSUE_KEY)
+        print("DEBUG pending issue:", PENDING_RELEASE_ISSUE_KEY)
+        print("DEBUG release version:", RELEASE_VERSION)
+        print("DEBUG modification:", repr(modification))
+        print("DEBUG existing rows count:", len(existing_rows))
+        print("DEBUG latest existing row:", existing_rows[0] if existing_rows else "NONE")
 
-        if modification:
+        if True:
+            modification = modification or "DEBUG TEST MODIFICATION"
             new_revision_row = {
                 "version": RELEASE_VERSION,
                 "date": today,
@@ -446,6 +452,9 @@ def main():
 
     add_cover_values(template, latest_version, today)
     style_distribution_list_table(template)
+    for idx, table in enumerate(template.tables):
+    first_row = " | ".join(cell.text for cell in table.rows[0].cells) if table.rows else ""
+    print(f"TABLE {idx}: {first_row}")
     fill_revision_history(template, existing_rows)
     fill_reference_documents_table(template)
 
