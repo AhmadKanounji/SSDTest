@@ -1124,11 +1124,17 @@ def generate_docx():
     try:
         data = request.get_json(silent=True) or {}
         author = data.get("author", EMAIL)
-
-        log("POST /generate-docx received")
-        log(f"Author = {author}")
-
-        file_path = build_ssd_docx(author=author)
+        pending_issue_key = data.get("pendingIssueKey", "")
+        release_version = data.get("releaseVersion", "")
+        
+        log(f"pendingIssueKey = {pending_issue_key}")
+        log(f"releaseVersion = {release_version}")
+        
+        file_path = build_ssd_docx(
+            author=author,
+            pending_issue_key=pending_issue_key,
+            release_version=release_version
+        )
 
         log(f"POST /generate-docx completed successfully - file: {file_path}")
 
