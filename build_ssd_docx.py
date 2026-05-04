@@ -572,7 +572,13 @@ def main():
     print(f"Saved {OUTPUT_PATH}")
 
 
-def build_ssd_docx(author: str) -> str:
+def build_ssd_docx(author: str, pending_issue_key: str, release_version: str) -> str:
+    global PENDING_RELEASE_ISSUE_KEY, RELEASE_VERSION, RELEASE_AUTHOR
+
+    PENDING_RELEASE_ISSUE_KEY = pending_issue_key
+    RELEASE_VERSION = release_version
+    RELEASE_AUTHOR = author
+
     main()
     return OUTPUT_PATH
 
