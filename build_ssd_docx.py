@@ -54,7 +54,7 @@ def adf_to_text(adf):
 
     parts = []
 
-    def walk(node):
+    def walk(node, list_type=None, level=0, number=None):
         if isinstance(node, dict):
             node_type = node.get("type")
             if node_type == "text":
@@ -394,13 +394,12 @@ def insert_body_text_after(anchor_paragraph, text):
         set_run_font(run, name="Arial", size=9)
     return current
 
-def insert_numbered_item_after(anchor_paragraph, text, level=0):
+def insert_numbered_item_after(anchor_paragraph, number, text, level=0):
     p = insert_paragraph_after(anchor_paragraph)
-    p.style = "List Number"
     p.paragraph_format.left_indent = Inches(0.25 + (level * 0.25))
     p.paragraph_format.space_after = Pt(2)
 
-    run = p.add_run(text)
+    run = p.add_run(f"{number}. {text}")
     set_run_font(run, name="Arial", size=9)
 
     return p
@@ -438,13 +437,15 @@ def insert_adf_content_after(anchor_paragraph, adf, attachments):
             text = adf_to_text(node).strip()
             if text:
                 if list_type == "ordered":
-                    current = insert_numbered_item_after(current, text, level)
+                    current = insert_numbered_item_after(current, number, text, level)
                 else:
                     current = insert_body_text_after(current, text)
 
         elif node_type == "orderedList":
+            number = 1
             for child in node.get("content", []):
-                walk(child, list_type="ordered", level=level)
+                walk(child, list_type="ordered", level=level, number=number)
+                number += 1
 
         elif node_type == "bulletList":
             for child in node.get("content", []):
