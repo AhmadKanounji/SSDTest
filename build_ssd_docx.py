@@ -452,9 +452,11 @@ def main():
 
     add_cover_values(template, latest_version, today)
     style_distribution_list_table(template)
+    
     for idx, table in enumerate(template.tables):
-    first_row = " | ".join(cell.text for cell in table.rows[0].cells) if table.rows else ""
-    print(f"TABLE {idx}: {first_row}")
+        first_row = " | ".join(cell.text for cell in table.rows[0].cells) if table.rows else ""
+        print(f"TABLE {idx}: {first_row}")
+        
     fill_revision_history(template, existing_rows)
     fill_reference_documents_table(template)
 
