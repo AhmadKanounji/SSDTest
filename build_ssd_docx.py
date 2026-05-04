@@ -28,6 +28,9 @@ TEMPLATE_PATH = os.environ.get("SSD_TEMPLATE_PATH", "ssd_template.docx")
 OUTPUT_PATH = os.environ.get("SSD_OUTPUT_PATH", "SSD_Output.docx")
 TZ = "Africa/Cairo"
 PURPLE_HEX = "7030A0"
+PENDING_RELEASE_ISSUE_KEY = os.environ.get("PENDING_RELEASE_ISSUE_KEY", "DD-1026").strip()
+RELEASE_VERSION = os.environ.get("RELEASE_VERSION", "2.7").strip()
+RELEASE_AUTHOR = os.environ.get("RELEASE_AUTHOR", "Ahmad Kanounji").strip()
 
 
 def jira_search(jql: str):
@@ -169,6 +172,67 @@ def extract_use_case_sort_key(summary: str, fallback_key: str = ""):
     except Exception:
         return (2, [999999], normalized, fallback_key)
 
+
+def get_jira_issue_comments(issue_key: str):
+    url = f"{JIRA_BASE}/rest/api/3/issue/{issue_key}/comment"
+    params = {"maxResults": 100}
+    r = requests.get(url, params=params, auth=auth)
+    r.raise_for_status()
+    return r.json().get("comments", [])
+
+
+def comment_body_to_text(body):
+    return adf_to_text(body)
+
+
+def extract_pending_ssd_changes(pending_issue_key: str):
+    comments = get_jira_issue_comments(pending_issue_key)
+
+    changes = {}
+    pattern = r"\[SSD_CHANGE\](.*?)\[/SSD_CHANGE\]"
+
+    for comment in comments:
+        text = comment_body_to_text(comment.get("body"))
+        blocks = re.findall(pattern, text, flags=re.DOTALL | re.IGNORECASE)
+
+        for block in blocks:
+            key_match = re.search(r"Key:\s*([A-Z]+-\d+)", block)
+            type_match = re.search(r"Type:\s*(.+)", block)
+
+            if not key_match:
+                continue
+
+            key = key_match.group(1).strip()
+            issue_type = type_match.group(1).strip() if type_match else ""
+
+            changes[key] = {
+                "key": key,
+                "type": issue_type,
+            }
+
+    return list(changes.values())
+
+
+def build_revision_modification_from_pending_changes(pending_issue_key: str):
+    changes = extract_pending_ssd_changes(pending_issue_key)
+
+    use_cases = sorted(
+        [c["key"] for c in changes if c["type"].lower() == "use case"]
+    )
+
+    requirements = sorted(
+        [c["key"] for c in changes if c["type"].lower() == "requirement"]
+    )
+
+    parts = []
+
+    if use_cases:
+        parts.append("Update of Use Cases: " + ", ".join(use_cases))
+
+    if requirements:
+        parts.append("Update of Requirements: " + ", ".join(requirements))
+
+    return "\n".join(parts)
 
 def set_run_font(run, name="Arial", size=9, bold=False, italic=False, color=None):
     run.font.name = name
@@ -362,7 +426,22 @@ def main():
         existing_rows = list(reversed(existing_rows))
 
     today = datetime.now(ZoneInfo(TZ)).strftime("%d/%m/%Y")
+
     latest_version = existing_rows[0]["version"] if existing_rows else "0.1"
+
+    if PENDING_RELEASE_ISSUE_KEY and RELEASE_VERSION:
+        modification = build_revision_modification_from_pending_changes(PENDING_RELEASE_ISSUE_KEY)
+
+        if modification:
+            new_revision_row = {
+                "version": RELEASE_VERSION,
+                "date": today,
+                "author": RELEASE_AUTHOR,
+                "modification": modification,
+            }
+
+            existing_rows.insert(0, new_revision_row)
+            latest_version = RELEASE_VERSION
 
     add_cover_values(template, latest_version, today)
     style_distribution_list_table(template)
