@@ -394,16 +394,31 @@ def insert_body_text_after(anchor_paragraph, text):
         set_run_font(run, name="Arial", size=9)
     return current
 
+def insert_numbered_item_after(anchor_paragraph, text, level=0):
+    p = insert_paragraph_after(anchor_paragraph)
+    p.style = "List Number"
+    p.paragraph_format.left_indent = Inches(0.25 + (level * 0.25))
+    p.paragraph_format.space_after = Pt(2)
+
+    run = p.add_run(text)
+    set_run_font(run, name="Arial", size=9)
+
+    return p
+
 def insert_adf_content_after(anchor_paragraph, adf, attachments):
     current = anchor_paragraph
+
     image_attachments = [
         att for att in attachments
         if (att.get("mimeType") or "").lower().startswith("image/")
-        or (att.get("filename") or "").lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
+        or (att.get("filename") or "").lower().endswith(
+            (".png", ".jpg", ".jpeg", ".gif", ".webp")
+        )
     ]
+
     image_index = 0
 
-    def walk(node):
+    def walk(node, list_type=None, level=0):
         nonlocal current, image_index
 
         if not node:
@@ -411,7 +426,7 @@ def insert_adf_content_after(anchor_paragraph, adf, attachments):
 
         if isinstance(node, list):
             for child in node:
-                walk(child)
+                walk(child, list_type=list_type, level=level)
             return
 
         if not isinstance(node, dict):
@@ -422,7 +437,22 @@ def insert_adf_content_after(anchor_paragraph, adf, attachments):
         if node_type == "paragraph":
             text = adf_to_text(node).strip()
             if text:
-                current = insert_body_text_after(current, text)
+                if list_type == "ordered":
+                    current = insert_numbered_item_after(current, text, level)
+                else:
+                    current = insert_body_text_after(current, text)
+
+        elif node_type == "orderedList":
+            for child in node.get("content", []):
+                walk(child, list_type="ordered", level=level)
+
+        elif node_type == "bulletList":
+            for child in node.get("content", []):
+                walk(child, list_type="bullet", level=level)
+
+        elif node_type == "listItem":
+            for child in node.get("content", []):
+                walk(child, list_type=list_type, level=level)
 
         elif node_type in ("mediaSingle", "mediaGroup", "media"):
             if image_index < len(image_attachments):
@@ -438,7 +468,7 @@ def insert_adf_content_after(anchor_paragraph, adf, attachments):
 
         else:
             for child in node.get("content", []):
-                walk(child)
+                walk(child, list_type=list_type, level=level)
 
     walk(adf)
     return current
