@@ -1,3 +1,4 @@
+from flask import Flask, request, send_file, jsonify
 import os
 import re
 import tempfile
@@ -28,12 +29,10 @@ TEMPLATE_PATH = os.environ.get("SSD_TEMPLATE_PATH", "ssd_template.docx")
 OUTPUT_PATH = os.environ.get("SSD_OUTPUT_PATH", "SSD_Output.docx")
 TZ = "Africa/Cairo"
 PURPLE_HEX = "7030A0"
-data = request.json
 
-PENDING_RELEASE_ISSUE_KEY = data.get("pendingIssueKey")
-RELEASE_VERSION = data.get("releaseVersion")
-RELEASE_AUTHOR = data.get("releaseAuthor")
-
+PENDING_RELEASE_ISSUE_KEY = ""
+RELEASE_VERSION = ""
+RELEASE_AUTHOR = ""
 
 def jira_search(jql: str):
     url = f"{JIRA_BASE}/rest/api/3/search/jql"
@@ -567,5 +566,39 @@ def build_ssd_docx(author: str) -> str:
     return OUTPUT_PATH
 
 
+app = Flask(__name__)
+
+
+@app.route("/", methods=["GET"])
+def health_check():
+    return jsonify({"status": "ok"}), 200
+
+
+@app.route("/generate-docx", methods=["POST"])
+def generate_docx():
+    global PENDING_RELEASE_ISSUE_KEY, RELEASE_VERSION, RELEASE_AUTHOR
+
+    data = request.get_json(force=True) or {}
+
+    PENDING_RELEASE_ISSUE_KEY = data.get("pendingIssueKey", "").strip()
+    RELEASE_VERSION = data.get("releaseVersion", "").strip()
+    RELEASE_AUTHOR = data.get("releaseAuthor", "Ahmad Kanounji").strip()
+
+    if not PENDING_RELEASE_ISSUE_KEY:
+        return jsonify({"error": "pendingIssueKey is required"}), 400
+
+    if not RELEASE_VERSION:
+        return jsonify({"error": "releaseVersion is required"}), 400
+
+    output_path = build_ssd_docx(RELEASE_AUTHOR)
+
+    return send_file(
+        output_path,
+        as_attachment=True,
+        download_name="SSD_Output.docx",
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+
+
 if __name__ == "__main__":
-    main()
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
