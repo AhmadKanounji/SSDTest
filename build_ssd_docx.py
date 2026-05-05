@@ -416,9 +416,10 @@ def insert_adf_content_after(anchor_paragraph, adf, attachments):
     ]
 
     image_index = 0
+    ordered_counter = 1
 
     def walk(node, list_type=None, level=0, number=None):
-        nonlocal current, image_index
+        nonlocal current, image_index, ordered_counter
 
         if not node:
             return
@@ -444,10 +445,9 @@ def insert_adf_content_after(anchor_paragraph, adf, attachments):
                     current = insert_body_text_after(current, text)
 
         elif node_type == "orderedList":
-            counter = 1
             for child in node.get("content", []):
-                walk(child, list_type="ordered", level=level, number=counter)
-                counter += 1
+                walk(child, list_type="ordered", level=level, number=ordered_counter)
+                ordered_counter += 1
 
         elif node_type == "bulletList":
             for child in node.get("content", []):
