@@ -154,6 +154,7 @@ def extract_use_case_sort_key(summary: str, fallback_key: str = ""):
         return (0, [], normalized, fallback_key)
 
     patterns = [
+        r"\bCU\s*([0-9]+(?:\.[0-9]+)*)\b",
         r"\bUC\s*([0-9]+(?:\.[0-9]+)*)\b",
         r"\bUse\s*Case\s*([0-9]+(?:\.[0-9]+)*)\b",
         r"^\s*([0-9]+(?:\.[0-9]+)*)\b",
