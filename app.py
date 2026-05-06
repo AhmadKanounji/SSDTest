@@ -1077,6 +1077,39 @@ def generate_ssd(author: str):
     log(f"generate_ssd finished - revision version {new_revision_version}")
     return updated
 
+def attach_file_to_jira_issue(issue_key, file_path):
+    log(f"attach_file_to_jira_issue started - issue={issue_key}")
+
+    url = f"{JIRA_BASE}/rest/api/3/issue/{issue_key}/attachments"
+
+    headers = {
+        "X-Atlassian-Token": "no-check"
+    }
+
+    with open(file_path, "rb") as f:
+        files = {
+            "file": (
+                "SSD_Output.docx",
+                f,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
+        }
+
+        r = requests.post(
+            url,
+            headers=headers,
+            files=files,
+            auth=auth
+        )
+
+    log(f"attach_file_to_jira_issue response: {r.status_code}")
+    log(f"attach_file_to_jira_issue body: {r.text[:1000]}")
+
+    r.raise_for_status()
+
+    log("attach_file_to_jira_issue finished")
+
+    return r.json()
 
 @app.get("/")
 def health():
@@ -1135,6 +1168,9 @@ def generate_docx():
             pending_issue_key=pending_issue_key,
             release_version=release_version
         )
+        
+        attach_file_to_jira_issue(pending_issue_key, file_path)
+        log(f"Attached DOCX to Jira issue {pending_issue_key}")
 
         log(f"POST /generate-docx completed successfully - file: {file_path}")
 
