@@ -391,7 +391,7 @@ def insert_body_text_after(anchor_paragraph, text):
         current.alignment = WD_ALIGN_PARAGRAPH.LEFT
         current.paragraph_format.space_after = Pt(4)
         run = current.add_run(block)
-        set_run_font(run, name="Arial", size=9)
+        set_run_font(run, name="Aptos", size=10, bold=False)
     return current
 
 def insert_numbered_item_after(anchor_paragraph, number, text, level=0):
