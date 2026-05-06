@@ -481,7 +481,7 @@ def insert_requirement_title_after(anchor_paragraph, text):
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.space_after = Pt(4)
     run = p.add_run(text)
-    set_run_font(run, name="Arial", size=10, bold=True)
+    set_run_font(run, name="Aptos Display", size=14, bold=False)
     return p
 
 
