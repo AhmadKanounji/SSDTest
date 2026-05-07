@@ -635,7 +635,7 @@ def main():
 
     # Inject Use Cases
     use_cases_anchor = find_paragraph(template, "3. Use Cases")
-    remove_all_after(use_cases_anchor)
+    
     current = use_cases_anchor
 
     for i, uc in enumerate(regular, start=1):
