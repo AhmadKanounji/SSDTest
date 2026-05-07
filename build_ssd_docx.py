@@ -373,6 +373,26 @@ def find_paragraph(doc, exact_text):
             return p
     return None
 
+def clean_empty_page_causes(doc):
+    body = doc._body._element
+
+    for el in list(body):
+        # Remove empty paragraphs that contain page breaks
+        if el.tag.endswith("p"):
+            text = "".join(el.itertext()).strip()
+
+            has_page_break = bool(el.xpath(".//w:br[@w:type='page']"))
+            has_drawing = bool(el.xpath(".//w:drawing"))
+            has_picture = bool(el.xpath(".//w:pict"))
+
+            if text == "" and has_page_break:
+                body.remove(el)
+                continue
+
+            if text == "" and not has_drawing and not has_picture:
+                # remove pure empty paragraphs
+                body.remove(el)
+                continue
 
 def insert_paragraph_after(paragraph, text="", style=None):
     new_p = OxmlElement("w:p")
@@ -694,6 +714,7 @@ def main():
                 req["fields"].get("attachment") or []
             )
 
+    clean_empty_page_causes(template)
     remove_trailing_empty_paragraphs(template)
     template.save(OUTPUT_PATH)
     print(f"Saved {OUTPUT_PATH}")
