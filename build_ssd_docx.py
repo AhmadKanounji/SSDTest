@@ -405,23 +405,27 @@ def remove_trailing_empty_paragraphs(doc):
 def remove_all_after(paragraph):
     """
     Removes all body elements after the given paragraph,
-    but preserves final section properties so headers/footers remain.
+    but keeps the final section properties by moving them to the end.
     """
     element = paragraph._element
     parent = element.getparent()
 
+    sect_pr = None
     next_el = element.getnext()
 
     while next_el is not None:
         following = next_el.getnext()
 
-        # Preserve section properties because they carry header/footer links
         if next_el.tag.endswith("sectPr"):
-            next_el = following
-            continue
+            sect_pr = next_el
+            parent.remove(next_el)
+        else:
+            parent.remove(next_el)
 
-        parent.remove(next_el)
         next_el = following
+
+    if sect_pr is not None:
+        parent.append(sect_pr)
 
 def insert_body_text_after(anchor_paragraph, text):
     current = anchor_paragraph
