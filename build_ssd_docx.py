@@ -377,22 +377,23 @@ def clean_empty_page_causes(doc):
     body = doc._body._element
 
     for el in list(body):
-        # Remove empty paragraphs that contain page breaks
-        if el.tag.endswith("p"):
-            text = "".join(el.itertext()).strip()
 
-            has_page_break = bool(el.xpath(".//w:br[@w:type='page']"))
-            has_drawing = bool(el.xpath(".//w:drawing"))
-            has_picture = bool(el.xpath(".//w:pict"))
+        if not el.tag.endswith("p"):
+            continue
 
-            if text == "" and has_page_break:
-                body.remove(el)
-                continue
+        text = "".join(el.itertext()).strip()
 
-            if text == "" and not has_drawing and not has_picture:
-                # remove pure empty paragraphs
-                body.remove(el)
-                continue
+        has_page_break = bool(el.xpath(".//w:br[@w:type='page']"))
+        has_drawing = bool(el.xpath(".//w:drawing"))
+        has_picture = bool(el.xpath(".//w:pict"))
+
+        # KEEP intentional page breaks
+        if has_page_break:
+            continue
+
+        # Remove only truly empty paragraphs
+        if text == "" and not has_drawing and not has_picture:
+            body.remove(el)
 
 def insert_paragraph_after(paragraph, text="", style=None):
     new_p = OxmlElement("w:p")
