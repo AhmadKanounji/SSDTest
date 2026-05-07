@@ -28,7 +28,7 @@ auth = HTTPBasicAuth(EMAIL, API_TOKEN)
 TEMPLATE_PATH = os.environ.get("SSD_TEMPLATE_PATH", "ssd_template.docx")
 OUTPUT_PATH = os.environ.get("SSD_OUTPUT_PATH", "SSD_Output.docx")
 TZ = "Africa/Cairo"
-PURPLE_HEX = "7030A0"
+PURPLE_HEX = "1F4E78"
 
 PENDING_RELEASE_ISSUE_KEY = ""
 RELEASE_VERSION = ""
