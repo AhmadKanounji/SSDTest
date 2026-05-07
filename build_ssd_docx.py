@@ -1,5 +1,6 @@
 from flask import Flask, request, send_file, jsonify
 from docx.enum.text import WD_BREAK
+from docx.shared import Pt
 import os
 import re
 import tempfile
@@ -432,15 +433,22 @@ def insert_body_text_after(anchor_paragraph, text):
     for block in [b.strip() for b in text.split("\n\n") if b.strip()]:
         current = insert_paragraph_after(current)
         current.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        current.paragraph_format.space_after = Pt(4)
+        current.paragraph_format.space_before = Pt(0)
+        current.paragraph_format.space_after = Pt(0)
+        current.paragraph_format.line_spacing = 1
         run = current.add_run(block)
         set_run_font(run, name="Aptos Display", size=10, bold=False)
     return current
 
 def insert_numbered_item_after(anchor_paragraph, number, text, level=0):
     p = insert_paragraph_after(anchor_paragraph)
+
     p.paragraph_format.left_indent = Inches(0.25 + (level * 0.25))
-    p.paragraph_format.space_after = Pt(2)
+
+    # FIX SPACING
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(0)
+    p.paragraph_format.line_spacing = 1
 
     run = p.add_run(f"{number}. {text}")
 
