@@ -1,4 +1,5 @@
 from flask import Flask, request, send_file, jsonify
+from docx.enum.text import WD_BREAK
 import os
 import re
 import tempfile
@@ -638,6 +639,10 @@ def main():
     current = use_cases_anchor
 
     for i, uc in enumerate(regular, start=1):
+        if i > 1:
+            page_break = insert_paragraph_after(current)
+            page_break.add_run().add_break(WD_BREAK.PAGE)
+            current = page_break
         if current is None:
             break
 
