@@ -528,7 +528,7 @@ def insert_heading_2_after(anchor_paragraph, text):
     p.paragraph_format.space_after = Pt(6)
 
     run = p.add_run(text)
-    set_run_font(run, name="Aptos Display", size=14, bold=False, color=RGBColor(0, 0, 0))
+    set_run_font(run, name="Aptos Display", size=14, bold=True, color=RGBColor(0, 0, 0))
 
     return p
 
