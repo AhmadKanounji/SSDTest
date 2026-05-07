@@ -602,8 +602,8 @@ def main():
 
     # Inject Exigences Générales
     if general:
-        desc_anchor = find_paragraph(template, "3.1 Description")
-        req_anchor = find_paragraph(template, "3.2 Requirements")
+        desc_anchor = find_paragraph(template, "2.1 Description")
+        req_anchor = find_paragraph(template, "2.2 Requirements")
 
         if desc_anchor:
             general_desc = adf_to_text(general["fields"].get("description"))
@@ -633,7 +633,7 @@ def main():
                 )
 
     # Inject Use Cases
-    use_cases_anchor = find_paragraph(template, "4. Use Cases")
+    use_cases_anchor = find_paragraph(template, "3. Use Cases")
     remove_all_after(use_cases_anchor)
     current = use_cases_anchor
 
@@ -643,7 +643,7 @@ def main():
 
         current = insert_heading_2_after(
             current,
-            f'4.{i} {uc["fields"].get("summary", "")}'
+            f'3.{i} {uc["fields"].get("summary", "")}'
         )
 
         reqs = sorted(
