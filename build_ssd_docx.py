@@ -404,13 +404,24 @@ def remove_trailing_empty_paragraphs(doc):
 
 def remove_all_after(paragraph):
     """
-    Removes all paragraphs/elements after given paragraph.
+    Removes all body elements after the given paragraph,
+    but preserves final section properties so headers/footers remain.
     """
     element = paragraph._element
+    parent = element.getparent()
 
-    while element.getnext() is not None:
-        parent = element.getparent()
-        parent.remove(element.getnext())
+    next_el = element.getnext()
+
+    while next_el is not None:
+        following = next_el.getnext()
+
+        # Preserve section properties because they carry header/footer links
+        if next_el.tag.endswith("sectPr"):
+            next_el = following
+            continue
+
+        parent.remove(next_el)
+        next_el = following
 
 def insert_body_text_after(anchor_paragraph, text):
     current = anchor_paragraph
@@ -635,7 +646,8 @@ def main():
 
     # Inject Use Cases
     use_cases_anchor = find_paragraph(template, "3. Use Cases")
-    
+    remove_all_after(use_cases_anchor)
+
     current = use_cases_anchor
 
     for i, uc in enumerate(regular, start=1):
