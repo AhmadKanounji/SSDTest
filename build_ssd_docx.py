@@ -384,6 +384,23 @@ def insert_paragraph_after(paragraph, text="", style=None):
         set_run_font(run, name="Arial", size=9)
     return new_paragraph
 
+def remove_trailing_empty_paragraphs(doc):
+    body = doc._body._element
+
+    while len(body) > 0:
+        last = body[-1]
+
+        # keep section properties
+        if last.tag.endswith("sectPr"):
+            break
+
+        text = "".join(last.itertext()).strip()
+
+        if text == "":
+            body.remove(last)
+        else:
+            break
+
 def remove_all_after(paragraph):
     """
     Removes all paragraphs/elements after given paragraph.
@@ -648,6 +665,7 @@ def main():
                 req["fields"].get("attachment") or []
             )
 
+    remove_trailing_empty_paragraphs(template)
     template.save(OUTPUT_PATH)
     print(f"Saved {OUTPUT_PATH}")
 
