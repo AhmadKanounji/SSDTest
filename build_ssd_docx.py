@@ -709,7 +709,11 @@ def generate_docx():
     if not RELEASE_VERSION:
         return jsonify({"error": "releaseVersion is required"}), 400
 
-    output_path = build_ssd_docx(RELEASE_AUTHOR)
+    output_path = build_ssd_docx(
+        RELEASE_AUTHOR,
+        PENDING_RELEASE_ISSUE_KEY,
+        RELEASE_VERSION
+    )
 
     return send_file(
         output_path,
