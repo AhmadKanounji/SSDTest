@@ -384,6 +384,15 @@ def insert_paragraph_after(paragraph, text="", style=None):
         set_run_font(run, name="Arial", size=9)
     return new_paragraph
 
+def remove_all_after(paragraph):
+    """
+    Removes all paragraphs/elements after given paragraph.
+    """
+    element = paragraph._element
+
+    while element.getnext() is not None:
+        parent = element.getparent()
+        parent.remove(element.getnext())
 
 def insert_body_text_after(anchor_paragraph, text):
     current = anchor_paragraph
@@ -608,6 +617,7 @@ def main():
 
     # Inject Use Cases
     use_cases_anchor = find_paragraph(template, "4. Use Cases")
+    remove_all_after(use_cases_anchor)
     current = use_cases_anchor
 
     for i, uc in enumerate(regular, start=1):
