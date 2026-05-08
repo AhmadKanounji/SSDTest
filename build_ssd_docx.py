@@ -1,5 +1,6 @@
 from flask import Flask, request, send_file, jsonify
 from docx.enum.text import WD_BREAK
+import json
 from docx.shared import Pt
 import os
 import re
@@ -31,7 +32,7 @@ TEMPLATE_PATH = os.environ.get("SSD_TEMPLATE_PATH", "ssd_template.docx")
 OUTPUT_PATH = os.environ.get("SSD_OUTPUT_PATH", "SSD_Output.docx")
 TZ = "Africa/Cairo"
 PURPLE_HEX = "1F4E78"
-
+REVISION_HISTORY_FILENAME = "ssd_revision_history.json"
 PENDING_RELEASE_ISSUE_KEY = ""
 RELEASE_VERSION = ""
 RELEASE_AUTHOR = ""
@@ -575,19 +576,68 @@ def insert_heading_2_after(anchor_paragraph, text):
     set_run_font(run, name="Aptos Display", size=14, bold=True, color=RGBColor(0, 0, 0))
 
     return p
+def attach_file_to_jira_issue(issue_key, file_path, filename, mime_type):
+    url = f"{JIRA_BASE}/rest/api/3/issue/{issue_key}/attachments"
 
+    headers = {
+        "X-Atlassian-Token": "no-check"
+    }
+
+    with open(file_path, "rb") as f:
+        files = {
+            "file": (filename, f, mime_type)
+        }
+
+        r = requests.post(
+            url,
+            headers=headers,
+            files=files,
+            auth=auth
+        )
+
+    r.raise_for_status()
+    return r.json()
+
+
+def load_revision_history_from_jira(issue_key):
+    url = f"{JIRA_BASE}/rest/api/3/issue/{issue_key}"
+    params = {"fields": "attachment"}
+
+    r = requests.get(url, params=params, auth=auth)
+    r.raise_for_status()
+
+    attachments = r.json()["fields"].get("attachment") or []
+
+    for att in attachments:
+        if att.get("filename") == REVISION_HISTORY_FILENAME:
+            rr = requests.get(att["content"], auth=auth)
+            rr.raise_for_status()
+            return rr.json()
+
+    return []
+
+
+def upload_revision_history_to_jira(issue_key, rows):
+    data = json.dumps(rows, ensure_ascii=False, indent=2).encode("utf-8")
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
+    tmp.write(data)
+    tmp.close()
+
+    attach_file_to_jira_issue(
+        issue_key,
+        tmp.name,
+        REVISION_HISTORY_FILENAME,
+        "application/json"
+    )
 
 def main():
     template = Document(TEMPLATE_PATH)
 
-    page_id = os.environ.get("CONFLUENCE_PAGE_ID")
     existing_rows = []
-    if page_id:
-        page = get_confluence_page(page_id)
-        existing_rows = extract_existing_revision_rows_from_confluence(
-            page.get("body", {}).get("storage", {}).get("value", "")
-        )
-        existing_rows = list(reversed(existing_rows))
+
+    if PENDING_RELEASE_ISSUE_KEY:
+        existing_rows = load_revision_history_from_jira(PENDING_RELEASE_ISSUE_KEY)
 
     today = datetime.now(ZoneInfo(TZ)).strftime("%d/%m/%Y")
     latest_version = existing_rows[0]["version"] if existing_rows else "0.1"
@@ -605,6 +655,8 @@ def main():
 
             existing_rows.insert(0, new_revision_row)
             latest_version = RELEASE_VERSION
+            
+            upload_revision_history_to_jira(PENDING_RELEASE_ISSUE_KEY, existing_rows)
 
     add_cover_values(template, latest_version, today)
     style_distribution_list_table(template)
