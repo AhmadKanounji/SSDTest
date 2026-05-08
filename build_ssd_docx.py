@@ -626,13 +626,24 @@ def load_revision_history_from_jira(issue_key):
 
     attachments = r.json()["fields"].get("attachment") or []
 
-    for att in attachments:
-        if att.get("filename") == REVISION_HISTORY_FILENAME:
-            rr = requests.get(att["content"], auth=auth)
-            rr.raise_for_status()
-            return rr.json()
+    revision_files = [
+        att for att in attachments
+        if att.get("filename") == REVISION_HISTORY_FILENAME
+    ]
 
-    return []
+    if not revision_files:
+        return []
+
+    # Pick latest uploaded JSON, not first one
+    latest_att = sorted(
+        revision_files,
+        key=lambda a: a.get("created", ""),
+        reverse=True
+    )[0]
+
+    rr = requests.get(latest_att["content"], auth=auth)
+    rr.raise_for_status()
+    return rr.json()
 
 
 def upload_revision_history_to_jira(issue_key, rows):
@@ -850,6 +861,7 @@ def generate_docx():
     print("[SSD] RAW DATA =", data, flush=True)
     print("[SSD] pendingIssueKey =", data.get("pendingIssueKey"), flush=True)
     print("[SSD] releaseVersion =", data.get("releaseVersion"), flush=True)
+    print("[SSD] releaseAuthor =", data.get("releaseAuthor"), flush=True)
 
     PENDING_RELEASE_ISSUE_KEY = data.get("pendingIssueKey", "").strip()
     RELEASE_VERSION = data.get("releaseVersion", "").strip()
