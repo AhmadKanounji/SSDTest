@@ -193,10 +193,28 @@ def comment_body_to_text(body):
 def extract_pending_ssd_changes(pending_issue_key: str):
     comments = get_jira_issue_comments(pending_issue_key)
 
+    # Sort comments oldest → newest
+    comments = sorted(
+        comments,
+        key=lambda c: c.get("created", "")
+    )
+
+    last_release_index = -1
+
+    # Find latest release marker
+    for idx, comment in enumerate(comments):
+        text = comment_body_to_text(comment.get("body"))
+
+        if "<<SSD_RELEASED>>" in text and "<</SSD_RELEASED>>" in text:
+            last_release_index = idx
+
+    # Keep only comments after the latest release
+    comments_after_last_release = comments[last_release_index + 1:]
+
     changes = {}
     pattern = r"<<SSD_CHANGE>>(.*?)<</SSD_CHANGE>>"
 
-    for comment in comments:
+    for comment in comments_after_last_release:
         text = comment_body_to_text(comment.get("body"))
         blocks = re.findall(pattern, text, flags=re.DOTALL | re.IGNORECASE)
 
@@ -631,6 +649,31 @@ def upload_revision_history_to_jira(issue_key, rows):
         "application/json"
     )
 
+def add_jira_comment(issue_key, text):
+    url = f"{JIRA_BASE}/rest/api/3/issue/{issue_key}/comment"
+
+    payload = {
+        "body": {
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": text
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+    r = requests.post(url, json=payload, auth=auth)
+    r.raise_for_status()
+    return r.json()
+
 def main():
     template = Document(TEMPLATE_PATH)
 
@@ -657,7 +700,13 @@ def main():
             latest_version = RELEASE_VERSION
             
             upload_revision_history_to_jira(PENDING_RELEASE_ISSUE_KEY, existing_rows)
+            add_jira_comment(
+            PENDING_RELEASE_ISSUE_KEY,
+            f"<<SSD_RELEASED>>\nVersion={RELEASE_VERSION}\nReleasedOn={today}\n<</SSD_RELEASED>>"
+            )
+            
 
+    
     add_cover_values(template, latest_version, today)
     style_distribution_list_table(template)
     fill_revision_history(template, existing_rows)
