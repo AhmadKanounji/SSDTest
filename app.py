@@ -1156,12 +1156,14 @@ def run():
 def generate_docx():
     try:
         data = request.get_json(silent=True) or {}
-        author = data.get("author", EMAIL)
+
+        author = data.get("releaseAuthor") or data.get("author") or EMAIL
         pending_issue_key = data.get("pendingIssueKey", "")
         release_version = data.get("releaseVersion", "")
         
         log(f"pendingIssueKey = {pending_issue_key}")
         log(f"releaseVersion = {release_version}")
+        log(f"releaseAuthor = {author}")
         
         file_path = build_ssd_docx(
             author=author,
