@@ -1187,6 +1187,38 @@ def generate_docx():
         log(f"POST /generate-docx failed: {repr(e)}")
         return {"status": "error", "message": str(e)}, 500
 
+    @app.post("/generate-release-note")
+def generate_release_note():
+    try:
+        data = request.get_json(silent=True) or {}
+
+        log("POST /generate-release-note received")
+
+        log(f"Payload = {data}")
+
+        release_version = data.get("releaseVersion", "")
+        release_author = data.get("releaseAuthor", "")
+        release_issue_key = data.get("releaseIssueKey", "")
+        project_key = data.get("projectKey", "")
+
+        log(f"releaseVersion = {release_version}")
+        log(f"releaseAuthor = {release_author}")
+        log(f"releaseIssueKey = {release_issue_key}")
+        log(f"projectKey = {project_key}")
+
+        return {
+            "status": "success",
+            "message": "Release Note payload received"
+        }, 200
+
+    except Exception as e:
+        log(f"POST /generate-release-note failed: {repr(e)}")
+
+        return {
+            "status": "error",
+            "message": str(e)
+        }, 500
+
 if __name__ == "__main__":
     log("Starting Flask app")
     app.run()
