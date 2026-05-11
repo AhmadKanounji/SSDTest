@@ -1187,7 +1187,8 @@ def generate_docx():
         log(f"POST /generate-docx failed: {repr(e)}")
         return {"status": "error", "message": str(e)}, 500
 
-    @app.post("/generate-release-note")
+
+@app.post("/generate-release-note")
 def generate_release_note():
     try:
         data = request.get_json(silent=True) or {}
