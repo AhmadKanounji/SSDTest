@@ -1247,6 +1247,24 @@ def generate_release_note():
                 f"{issue['key']} - "
                 f"{issue['fields'].get('summary', '')}"
             )
+        fixed_issues = [
+    issue for issue in issues
+    if issue["fields"]["status"]["statusCategory"]["key"] == "done"
+    ]
+    
+    open_issues = [
+        issue for issue in issues
+        if issue["fields"]["status"]["statusCategory"]["key"] != "done"
+    ]
+    
+    log(f"Fixed issues count = {len(fixed_issues)}")
+    log(f"Open issues count = {len(open_issues)}")
+    
+    for issue in fixed_issues:
+        log(f"FIXED - {issue['key']} - {issue['fields'].get('summary', '')}")
+    
+    for issue in open_issues:
+        log(f"OPEN - {issue['key']} - {issue['fields'].get('summary', '')}")
 
         return {
             "status": "success",
