@@ -56,6 +56,38 @@ def reset_attachment_cache():
 def log(message: str):
     print(f"[SSD] {datetime.now(ZoneInfo('Asia/Beirut')).isoformat()} - {message}", flush=True)
 
+def get_release_issues(release_version):
+    log(f"get_release_issues started - version={release_version}")
+
+    jql = f'fixVersion = "{release_version}"'
+
+    url = f"{JIRA_BASE}/rest/api/3/search/jql"
+
+    params = {
+        "jql": jql,
+        "maxResults": 200,
+        "fields": (
+            "summary,"
+            "status,"
+            "priority,"
+            "fixVersions,"
+            "customfield_12957,"
+            "customfield_12890"
+        ),
+    }
+
+    r = requests.get(url, params=params, auth=auth)
+
+    log(f"get_release_issues response status: {r.status_code}")
+    log(f"get_release_issues response body: {r.text[:1000]}")
+
+    r.raise_for_status()
+
+    issues = r.json()["issues"]
+
+    log(f"get_release_issues finished - {len(issues)} issues")
+
+    return issues
 
 def jira_search(jql: str):
     log(f"jira_search started - JQL: {jql}")
@@ -1206,6 +1238,15 @@ def generate_release_note():
         log(f"releaseAuthor = {release_author}")
         log(f"releaseIssueKey = {release_issue_key}")
         log(f"projectKey = {project_key}")
+        issues = get_release_issues(release_version)
+
+        log(f"Retrieved {len(issues)} release issues")
+        
+        for issue in issues:
+            log(
+                f"{issue['key']} - "
+                f"{issue['fields'].get('summary', '')}"
+            )
 
         return {
             "status": "success",
