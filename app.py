@@ -47,7 +47,35 @@ def get_existing_confluence_attachments_cached():
         ATTACHMENT_CACHE = get_existing_confluence_attachments()
     return ATTACHMENT_CACHE
 
+def extract_option_value(value):
+    if value is None:
+        return ""
 
+    if isinstance(value, dict):
+        return value.get("value") or value.get("name") or ""
+
+    if isinstance(value, list):
+        return ", ".join(
+            extract_option_value(item)
+            for item in value
+            if extract_option_value(item)
+        )
+
+    return str(value)
+
+
+def normalize_release_issue(issue, selected_version):
+    fields = issue["fields"]
+
+    return {
+        "issue_key": issue.get("key", ""),
+        "external_id": extract_option_value(fields.get("customfield_12957")),
+        "summary": fields.get("summary", ""),
+        "platform": extract_option_value(fields.get("customfield_12890")),
+        "severity": extract_option_value(fields.get("priority")),
+        "fixed_version": selected_version,
+    }
+    
 def reset_attachment_cache():
     global ATTACHMENT_CACHE
     ATTACHMENT_CACHE = None
@@ -1266,6 +1294,19 @@ def generate_release_note():
 
         for issue in open_issues:
             log(f"OPEN - {issue['key']} - {issue['fields'].get('summary', '')}")
+
+        fixed_rows = [
+            normalize_release_issue(issue, release_version)
+            for issue in fixed_issues
+        ]
+
+        open_rows = [
+            normalize_release_issue(issue, release_version)
+            for issue in open_issues
+        ]
+
+        log(f"Fixed rows = {fixed_rows}")
+        log(f"Open rows = {open_rows}")
 
         return {
             "status": "success",
