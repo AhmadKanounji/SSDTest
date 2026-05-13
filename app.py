@@ -118,6 +118,43 @@ def get_release_issues(release_version):
 
     return issues
 
+def get_open_issues_by_platforms(platforms):
+    if not platforms:
+        return []
+
+    platform_jql = " OR ".join(
+        f'cf[12890] = "{platform}"'
+        for platform in platforms
+    )
+
+    jql = f'({platform_jql}) AND statusCategory != Done'
+
+    url = f"{JIRA_BASE}/rest/api/3/search/jql"
+
+    params = {
+        "jql": jql,
+        "maxResults": 200,
+        "fields": (
+            "summary,"
+            "status,"
+            "priority,"
+            "fixVersions,"
+            "customfield_12957,"
+            "customfield_12890"
+        ),
+    }
+
+    log(f"get_open_issues_by_platforms JQL: {jql}")
+
+    r = requests.get(url, params=params, auth=auth)
+
+    log(f"get_open_issues_by_platforms response status: {r.status_code}")
+    log(f"get_open_issues_by_platforms response body: {r.text[:1000]}")
+
+    r.raise_for_status()
+
+    return r.json()["issues"]
+
 def jira_search(jql: str):
     log(f"jira_search started - JQL: {jql}")
 
@@ -1282,10 +1319,15 @@ def generate_release_note():
             if issue["fields"]["status"]["statusCategory"]["key"] == "done"
         ]
 
-        open_issues = [
-            issue for issue in issues
-            if issue["fields"]["status"]["statusCategory"]["key"] != "done"
-        ]
+         released_platforms = list({
+            extract_option_value(issue["fields"].get("customfield_12890"))
+            for issue in fixed_issues
+            if extract_option_value(issue["fields"].get("customfield_12890"))
+        })
+
+        log(f"Released platforms = {released_platforms}")
+
+        open_issues = get_open_issues_by_platforms(released_platforms)
 
         log(f"Fixed issues count = {len(fixed_issues)}")
         log(f"Open issues count = {len(open_issues)}")
