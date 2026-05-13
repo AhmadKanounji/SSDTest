@@ -1,5 +1,6 @@
 from datetime import datetime
 from docx import Document
+from copy import deepcopy
 
 
 TEMPLATE_PATH = "RN_EG_CBE_Billing_Template.docx"
