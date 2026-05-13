@@ -17,15 +17,21 @@ def clear_table_data_rows(table):
 
 
 def add_row(table, values):
-    template_row = table.rows[1]
+    # If row 1 is still empty, use it directly
+    target_row = table.rows[1]
 
-    new_tr = deepcopy(template_row._tr)
-    table._tbl.append(new_tr)
+    is_empty = all(
+        cell.text.strip() == ""
+        for cell in target_row.cells
+    )
 
-    row = table.rows[-1]
+    if not is_empty:
+        new_tr = deepcopy(target_row._tr)
+        table._tbl.append(new_tr)
+        target_row = table.rows[-1]
 
     for i, value in enumerate(values):
-        row.cells[i].text = str(value or "")
+        target_row.cells[i].text = str(value or "")
 
 
 def build_release_note_docx(release_version, release_author, fixed_rows, open_rows):
