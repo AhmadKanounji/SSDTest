@@ -1138,7 +1138,7 @@ def generate_ssd(author: str):
     log(f"generate_ssd finished - revision version {new_revision_version}")
     return updated
 
-def attach_file_to_jira_issue(issue_key, file_path):
+def attach_file_to_jira_issue(issue_key, file_path, upload_filename="SSD_Output.docx"):
     log(f"attach_file_to_jira_issue started - issue={issue_key}")
 
     url = f"{JIRA_BASE}/rest/api/3/issue/{issue_key}/attachments"
@@ -1150,7 +1150,7 @@ def attach_file_to_jira_issue(issue_key, file_path):
     with open(file_path, "rb") as f:
         files = {
             "file": (
-                "SSD_Output.docx",
+                upload_filename,
                 f,
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
@@ -1317,6 +1317,14 @@ def generate_release_note():
         )
 
         log(f"Release Note DOCX generated: {file_path}")
+
+        attach_file_to_jira_issue(
+            release_issue_key,
+            file_path,
+            upload_filename=f"Release_Note_{release_version}.docx"
+        )
+        
+        log(f"Attached Release Note DOCX to Jira issue {release_issue_key}")
 
         return {
             "status": "success",
