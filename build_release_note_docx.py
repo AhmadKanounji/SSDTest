@@ -33,21 +33,60 @@ def add_row(table, values):
     for i, value in enumerate(values):
         target_row.cells[i].text = str(value or "")
 
-def replace_placeholders(doc, replacements):
-    for paragraph in doc.paragraphs:
-        for key, value in replacements.items():
-            if key in paragraph.text:
-                for run in paragraph.runs:
-                    run.text = run.text.replace(key, str(value))
+def replace_text_in_paragraphs(paragraphs, replacements):
+    for paragraph in paragraphs:
+        full_text = "".join(run.text for run in paragraph.runs)
 
+        updated_text = full_text
+
+        for key, value in replacements.items():
+            updated_text = updated_text.replace(key, str(value))
+
+        if updated_text != full_text and paragraph.runs:
+            paragraph.runs[0].text = updated_text
+
+            for run in paragraph.runs[1:]:
+                run.text = ""
+
+def replace_placeholders(doc, replacements):
+
+    # Main document paragraphs
+    replace_text_in_paragraphs(doc.paragraphs, replacements)
+
+    # Tables
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    for key, value in replacements.items():
-                        if key in paragraph.text:
-                            for run in paragraph.runs:
-                                run.text = run.text.replace(key, str(value))
+                replace_text_in_paragraphs(cell.paragraphs, replacements)
+
+    # Headers / Footers
+    for section in doc.sections:
+
+        replace_text_in_paragraphs(
+            section.header.paragraphs,
+            replacements
+        )
+
+        replace_text_in_paragraphs(
+            section.footer.paragraphs,
+            replacements
+        )
+
+        for table in section.header.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    replace_text_in_paragraphs(
+                        cell.paragraphs,
+                        replacements
+                    )
+
+        for table in section.footer.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    replace_text_in_paragraphs(
+                        cell.paragraphs,
+                        replacements
+                    )
 
 
 def build_release_note_docx(release_version, release_author, fixed_rows, open_rows):
