@@ -55,6 +55,15 @@ def build_release_note_docx(release_version, release_author, fixed_rows, open_ro
 
     today = datetime.now().strftime("%d/%m/%Y")
 
+    component = fixed_rows[0]["platform"] if fixed_rows else ""
+
+    replace_placeholders(doc, {
+        "{{Component}}": component,
+        "{{COMPONENT}}": component,
+        "{{RELEASE_VERSION}}": release_version,
+        "{{GENERATION_DATE}}": today,
+    })
+
     # Revision History = table 2
     revision_table = doc.tables[2]
     clear_table_data_rows(revision_table)
