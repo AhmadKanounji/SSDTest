@@ -127,7 +127,7 @@ def get_open_issues_by_platforms(platforms):
         for platform in platforms
     )
 
-    jql = f'({platform_jql}) AND statusCategory != Done'
+    jql = f'({platform_jql}) AND issuetype = Bug AND statusCategory != Done'
 
     url = f"{JIRA_BASE}/rest/api/3/search/jql"
 
