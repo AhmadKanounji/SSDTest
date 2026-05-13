@@ -2,7 +2,7 @@ from docx import Document
 
 
 def inspect_release_note_template():
-    doc = Document("templates/RN_EG_CBE_Billing_Template.docx")
+    doc = Document("RN_EG_CBE_Billing_Template.docx")
 
     print(f"Total tables = {len(doc.tables)}", flush=True)
 
