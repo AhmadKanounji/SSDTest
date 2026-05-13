@@ -87,7 +87,7 @@ def update_release_note_issue(issue_key, component, release_version):
     payload = {
         "fields": {
             "customfield_12890": {"value": component},
-            "customfield_12891": release_version
+            "customfield_13292": release_version
         }
     }
 
