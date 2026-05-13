@@ -7,12 +7,22 @@ OUTPUT_PATH = "Release_Note_Output.docx"
 
 
 def clear_table_data_rows(table):
-    while len(table.rows) > 1:
-        table._tbl.remove(table.rows[1]._tr)
+    while len(table.rows) > 2:
+        table._tbl.remove(table.rows[2]._tr)
+
+    if len(table.rows) > 1:
+        for cell in table.rows[1].cells:
+            cell.text = ""
 
 
 def add_row(table, values):
-    row = table.add_row()
+    template_row = table.rows[1]
+
+    new_tr = deepcopy(template_row._tr)
+    table._tbl.append(new_tr)
+
+    row = table.rows[-1]
+
     for i, value in enumerate(values):
         row.cells[i].text = str(value or "")
 
