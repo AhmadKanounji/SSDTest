@@ -81,6 +81,26 @@ def reset_attachment_cache():
     global ATTACHMENT_CACHE
     ATTACHMENT_CACHE = None
 
+def update_release_note_issue(issue_key, component, release_version):
+    url = f"{JIRA_BASE}/rest/api/3/issue/{issue_key}"
+
+    payload = {
+        "fields": {
+            "customfield_12890": {"value": component},
+            "customfield_12891": release_version
+        }
+    }
+
+    log(f"update_release_note_issue started - issue={issue_key}")
+    log(f"update_release_note_issue payload={payload}")
+
+    r = requests.put(url, json=payload, auth=auth)
+
+    log(f"update_release_note_issue response: {r.status_code}")
+    log(f"update_release_note_issue body: {r.text[:1000]}")
+
+    r.raise_for_status()
+
 
 def log(message: str):
     print(f"[SSD] {datetime.now(ZoneInfo('Asia/Beirut')).isoformat()} - {message}", flush=True)
@@ -1395,6 +1415,16 @@ def generate_release_note():
         )
         
         log(f"Attached Release Note DOCX to Jira issue {release_issue_key}")
+        
+        release_component = ", ".join(released_platforms)
+
+        update_release_note_issue(
+            issue_key=release_issue_key,
+            component=release_component,
+            release_version=release_version
+        )
+
+log(f"Updated Release Notes issue fields for {release_issue_key}")
 
         return {
             "status": "success",
