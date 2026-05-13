@@ -1424,7 +1424,7 @@ def generate_release_note():
             release_version=release_version
         )
 
-log(f"Updated Release Notes issue fields for {release_issue_key}")
+        log(f"Updated Release Notes issue fields for {release_issue_key}")
 
         return {
             "status": "success",
