@@ -9,6 +9,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 from flask import Flask, request, send_file
 from build_ssd_docx import build_ssd_docx
+from build_release_note_docx import inspect_release_note_template
 
 app = Flask(__name__)
 
@@ -1307,6 +1308,8 @@ def generate_release_note():
 
         log(f"Fixed rows = {fixed_rows}")
         log(f"Open rows = {open_rows}")
+
+        inspect_release_note_template()
 
         return {
             "status": "success",
