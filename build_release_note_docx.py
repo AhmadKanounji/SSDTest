@@ -33,6 +33,22 @@ def add_row(table, values):
     for i, value in enumerate(values):
         target_row.cells[i].text = str(value or "")
 
+def replace_placeholders(doc, replacements):
+    for paragraph in doc.paragraphs:
+        for key, value in replacements.items():
+            if key in paragraph.text:
+                for run in paragraph.runs:
+                    run.text = run.text.replace(key, str(value))
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    for key, value in replacements.items():
+                        if key in paragraph.text:
+                            for run in paragraph.runs:
+                                run.text = run.text.replace(key, str(value))
+
 
 def build_release_note_docx(release_version, release_author, fixed_rows, open_rows):
     doc = Document(TEMPLATE_PATH)
