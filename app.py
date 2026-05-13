@@ -191,6 +191,10 @@ def get_confluence_page():
     return page
 
 
+def sanitize_filename(value):
+    value = value or ""
+    return re.sub(r'[\\/*?:"<>|]', "_", value).strip()
+
 def update_confluence_page(title: str, html_value: str, version_number: int):
     log(f"update_confluence_page started - target version: {version_number}")
 
@@ -358,6 +362,24 @@ def ensure_attachment_on_confluence(attachment):
 
     log(f"ensure_attachment_on_confluence finished - {downloaded['filename']}")
     return downloaded["filename"]
+
+
+def sort_release_rows(rows):
+    severity_order = {
+        "Highest": 0,
+        "High": 1,
+        "Medium": 2,
+        "Low": 3,
+        "Lowest": 4,
+    }
+
+    return sorted(
+        rows,
+        key=lambda row: (
+            severity_order.get(row.get("severity", ""), 99),
+            row.get("issue_key", "")
+        )
+    )
 
 
 def render_confluence_image_from_attachment(att):
@@ -1348,6 +1370,10 @@ def generate_release_note():
             for issue in open_issues
         ]
 
+        fixed_rows = sort_release_rows(fixed_rows)
+        
+        open_rows = sort_release_rows(open_rows)
+
         log(f"Fixed rows = {fixed_rows}")
         log(f"Open rows = {open_rows}")
 
@@ -1360,10 +1386,12 @@ def generate_release_note():
 
         log(f"Release Note DOCX generated: {file_path}")
 
+        safe_release_version = sanitize_filename(release_version)
+
         attach_file_to_jira_issue(
             release_issue_key,
             file_path,
-            upload_filename=f"Release_Note_{release_version}.docx"
+            upload_filename=f"Release_Note_{safe_release_version}.docx"
         )
         
         log(f"Attached Release Note DOCX to Jira issue {release_issue_key}")
