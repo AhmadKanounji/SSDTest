@@ -1319,7 +1319,7 @@ def generate_release_note():
             if issue["fields"]["status"]["statusCategory"]["key"] == "done"
         ]
 
-         released_platforms = list({
+        released_platforms = list({
             extract_option_value(issue["fields"].get("customfield_12890"))
             for issue in fixed_issues
             if extract_option_value(issue["fields"].get("customfield_12890"))
