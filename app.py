@@ -1240,7 +1240,21 @@ def create_ssd_issue(release_version, release_author, trigger_issue_key):
                 "id": SSD_ISSUE_TYPE_ID
             },
             "summary": summary,
-            "description": description,
+            "description": {
+                "type": "doc",
+                "version": 1,
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": description
+                            }
+                        ]
+                    }
+                ]
+            },
             SSD_VERSION_FIELD: release_version
         }
     }
